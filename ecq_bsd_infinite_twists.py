@@ -16,7 +16,7 @@ from lmfdb import db
 import pandas as pd
 import numpy as np
 
-from sage.all import EllipticCurve, primes_first_n, round, Integer
+from sage.all import EllipticCurve, primes_first_n, round, Integer, QQ
 import time
 
 OUTPUT_FILE = 'data/output.txt'
@@ -63,27 +63,27 @@ def get_data(tab):
                 condition_1d = False
                 break
 
-        E_torsion_gens = E.torsion_subgroup().gens()
-        assert len(E_torsion_gens) == 1
-        P = E_torsion_gens[0]
-        if P.order() == 2:
-            E_two_torsion_gen = P
-        elif P.order() == 6:
-            E_two_torsion_gen = 3 * P
-        elif P.order() == 10:
-            E_two_torsion_gen = 5 * P
-        else:
-            raise ValueError("Unexpected torsion order")
+        # E_torsion_gens = E.torsion_subgroup().gens()
+        # assert len(E_torsion_gens) == 1
+        # P = E_torsion_gens[0]
+        # if P.order() == 2:
+        #     E_two_torsion_gen = P
+        # elif P.order() == 6:
+        #     E_two_torsion_gen = 3 * P
+        # elif P.order() == 10:
+        #     E_two_torsion_gen = 5 * P
+        # else:
+        #     raise ValueError("Unexpected torsion order")
 
-        assert E_two_torsion_gen.order() == 2
+        # assert E_two_torsion_gen.order() == 2
 
-        C = E(E_two_torsion_gen)
-        E_prime = E.isogeny_codomain(C)
-        E_prime_sha_order = E_prime.sha().an().round()  # the "round" is for the case where analytic rank is > 1
-        condition_1i = (E_prime_sha_order == 1)
+        # C = E(E_two_torsion_gen)
+        # E_prime = E.isogeny_codomain(C)
+        # E_prime_sha_order = E_prime.sha().an().round()  # the "round" is for the case where analytic rank is > 1
+        # condition_1i = (E_prime_sha_order == 1)
 
 
-        conditions = [condition_1b, condition_1c, condition_1d, condition_1i]
+        conditions = [condition_1b, condition_1c, condition_1d, True]
 
         if all(conditions):
             data.append(curve['lmfdb_label'])
@@ -95,34 +95,41 @@ def foo(cond_bound=20):
     print(f"Generating data file for curves of conductor up to {cond_bound}...")
     output_file = OUTPUT_FILE  # .format(NUM_AP_VALS, 1, MY_LOCAL_LIM-1)
     my_query = {'conductor': {'$lt': cond_bound},
-                'semistable' : True,
-                'optimality' : 1,
-                'manin_constant' : {'$mod': [2, 1]},
-                'torsion' : {'$in': [2, 6, 10]}}
+                'semistable' : True}
+                # 'optimality' : 1,
+                # 'manin_constant' : {'$mod': [2, 1]},
+                #'torsion' : {'$in': [2, 6, 10]}}
     the_curves = ecq.search(my_query, projection=SEARCH_COLS, one_per=['lmfdb_iso'])
     labels = get_data(the_curves)
-
-    final_labels = labels
+    print(f"Done initial filtering. Initial labels are {labels}.")
+    # final_labels = []
     # for label in labels:
+    #     print(f"Checking curve {label}...")
     #     tamagawa_product = ec_mwbsd.lookup(label, projection='tamagawa_product')
     #     sha = ecq.lookup(label, projection='sha')
     #     torsion_order = ecq.lookup(label, projection='torsion')
-    #     the_quantity = ((tamagawa_product * sha) / (torsion_order)**2).valuation(2)
+    #     the_quantity = QQ((tamagawa_product * sha) / (torsion_order)**2).valuation(2)
     #     if the_quantity == -1:
     #         final_labels.append(label)
 
     # Export labels to a text file
     with open(output_file, 'w') as f:
-        for label in final_labels:
+        for label in labels:
             f.write(f"{label}\n")
 
-    print(f"SUCCESS!!! Data file saved to {output_file}")
+    print(f"SUCCESS!!! Data file saved to {output_file}.")
+
+    final_cremona_labels = []
+    for label in labels:
+        c_label = ecq.lookup(label, projection='Clabel')
+        final_cremona_labels.append(c_label)
+    print(f"The labels are {final_cremona_labels}.")
 
 print("Working...")
 
 start_time = time.time()
 
-foo(50)
+foo(150)
 
 end_time = time.time()
 elapsed_time = end_time - start_time
