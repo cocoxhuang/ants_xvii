@@ -46,9 +46,9 @@ def get_data(tab):
     data = []
     for curve in tab:
         ainvs = curve['ainvs']
-        cond = Integer(curve['conductor'])
         minimal_disc = Integer(curve['absD'])
         bad_primes = curve['bad_primes']
+
         E = EllipticCurve(ainvs)
         a3 = E.ap(3)  # condition 1b
         condition_1b = (a3 == 0)
@@ -63,7 +63,27 @@ def get_data(tab):
                 condition_1d = False
                 break
 
-        conditions = [condition_1b, condition_1c, condition_1d]
+        E_torsion_gens = E.torsion_subgroup().gens()
+        assert len(E_torsion_gens) == 1
+        P = E_torsion_gens[0]
+        if P.order() == 2:
+            E_two_torsion_gen = P
+        elif P.order() == 6:
+            E_two_torsion_gen = 3 * P
+        elif P.order() == 10:
+            E_two_torsion_gen = 5 * P
+        else:
+            raise ValueError("Unexpected torsion order")
+
+        assert E_two_torsion_gen.order() == 2
+
+        C = E(E_two_torsion_gen)
+        E_prime = E.isogeny_codomain(C)
+        E_prime_sha_order = E_prime.sha().an().round()  # the "round" is for the case where analytic rank is > 1
+        condition_1i = (E_prime_sha_order == 1)
+
+
+        conditions = [condition_1b, condition_1c, condition_1d, condition_1i]
 
         if all(conditions):
             data.append(curve['lmfdb_label'])
@@ -74,16 +94,26 @@ def foo(cond_bound=20):
 
     print(f"Generating data file for curves of conductor up to {cond_bound}...")
     output_file = OUTPUT_FILE  # .format(NUM_AP_VALS, 1, MY_LOCAL_LIM-1)
-    my_query = {'conductor': {'$lt': cond_bound}, 'semistable' : True}
+    my_query = {'conductor': {'$lt': cond_bound},
+                'semistable' : True,
+                'optimality' : 1,
+                'manin_constant' : {'$mod': [2, 1]},
+                'torsion' : {'$in': [2, 6, 10]}}
     the_curves = ecq.search(my_query, projection=SEARCH_COLS, one_per=['lmfdb_iso'])
+    labels = get_data(the_curves)
 
-    data = get_data(the_curves)
-
-    # data = list(the_curves)
+    final_labels = labels
+    # for label in labels:
+    #     tamagawa_product = ec_mwbsd.lookup(label, projection='tamagawa_product')
+    #     sha = ecq.lookup(label, projection='sha')
+    #     torsion_order = ecq.lookup(label, projection='torsion')
+    #     the_quantity = ((tamagawa_product * sha) / (torsion_order)**2).valuation(2)
+    #     if the_quantity == -1:
+    #         final_labels.append(label)
 
     # Export labels to a text file
     with open(output_file, 'w') as f:
-        for label in data:
+        for label in final_labels:
             f.write(f"{label}\n")
 
     print(f"SUCCESS!!! Data file saved to {output_file}")
