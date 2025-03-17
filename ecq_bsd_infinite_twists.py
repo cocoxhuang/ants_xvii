@@ -1,6 +1,6 @@
 """ecq_bsd_infinite_twists.py
 
-This script generates a text file which includes elliptic curves with 
+This script generates a text file which includes elliptic curves with
 a family of quadratic twists that satisfy the full BSD conjecture formula.
 
 To run this, execute the following command in the terminal:
@@ -14,7 +14,7 @@ from lmfdb import db
 import pandas as pd
 import numpy as np
 
-from sage.all import EllipticCurve, primes_first_n, round, Integer, QQ
+from sage.all import EllipticCurve, primes_first_n, round, Integer, QQ, RR
 import time
 
 OUTPUT_FILE = 'data/output.txt'
@@ -59,7 +59,7 @@ def filter_conditions_c_d_i(df):
                 break
 
         E_torsion_gens = E.torsion_subgroup().gens()
-        assert len(E_torsion_gens) == 1  
+        assert len(E_torsion_gens) == 1
         P = E_torsion_gens[0]
         if P.order() == 2:
             E_two_torsion_gen = P
@@ -96,6 +96,7 @@ def foo(cond_bound=20):
                 'semistable' : True,  # condition 1a: semistable
                 'optimality' : 1,  # condition 1e: E is optimal
                 'manin_constant' : {'$mod': [2, 1]} # condition 1f: manin constant is odd
+                # 'torsion_structure': {'$in': [[2], [4], [6], [8], [10], [12]]}  # condition 1g: E(Q)[2] = Z/2Z (part 1)
                 }
     ecq_payload = ecq.search(ecq_query, projection=ECQ_COLS)
     df = pd.DataFrame(list(ecq_payload))
@@ -120,12 +121,17 @@ def foo(cond_bound=20):
 
     df = pd.merge(df, mwbsd_df, on='lmfdb_label', how='inner')
 
-    # df['condition_1h_quantity'] = (df['tamagawa_product'] * df['sha'].round()) / (df['torsion']**2)
-    # df['condition_1h_quantity'] = df['condition_1h_quantity'].apply(lambda x : QQ(x).valuation(2))
-    # df = df[df['condition_1h_quantity'] == -1]  # condition 1h: 2-ord of special_value/(real_period*regulator) = -1
+    df['my_condition_1h_quantity'] = (df['tamagawa_product'] * df['sha'].round()) / (df['torsion']**2)
+    df['my_condition_1h_quantity'] = df['my_condition_1h_quantity'].apply(lambda x : QQ(x).valuation(2))
+    # df = df[df['my_condition_1h_quantity'] == -1]  # condition 1h: 2-ord of special_value/(real_period*regulator) = -1
     df['condition_1h_quantity'] = (df['special_value']/(df['real_period'] * df['regulator']))
-    df['condition_1h_quantity'] = df['condition_1h_quantity'].apply(lambda x: QQ(round(x,5)).valuation(2))
-    df = df[df['condition_1h_quantity'] == -1] # condition 1h: 2-ord of special_value/(real_period*regulator) = -1
+    df['condition_1h_quantity'] = df['condition_1h_quantity'].apply(lambda x: QQ(RR(x)).valuation(2))
+    # df = df[df['condition_1h_quantity'] == -1] # condition 1h: 2-ord of special_value/(real_period*regulator) = -1
+
+    assert df['my_condition_1h_quantity'].equals(df['condition_1h_quantity']), \
+    "The values in 'my_condition_1h_quantity' and 'condition_1h_quantity' are not identical!"
+
+    df = df[df['condition_1h_quantity'] == -1]  # condition 1h: 2-ord of special_value/(real_period*regulator) = -1
 
     labels = filter_conditions_c_d_i(df)
     # final_labels = []
