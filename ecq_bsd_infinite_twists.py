@@ -1,9 +1,7 @@
 """ecq_bsd_infinite_twists.py
 
-This script generates data files for elliptic curves with conductor less than 1024.
-The data files contain the normalized a_p values for the first 50 primes,
-as well as the conductor, rank, torsion, adelic level, adelic index, adelic genus,
-and sha of the curve. The data files are saved in the parquet format.
+This script generates a text file which includes elliptic curves with 
+a family of quadratic twists that satisfy the full BSD conjecture formula.
 
 To run this, execute the following command in the terminal:
 
@@ -32,12 +30,12 @@ ec_mwbsd = db.ec_mwbsd
 NUM_AP_VALS = 100  # Number of primes to use for the a_p values
 ECQ_COLS = ['ainvs', 'lmfdb_label', 'conductor', 'rank', 'torsion', 'absD', 'bad_primes', 'manin_constant', 'regulator', 'sha', 'lmfdb_iso', 'torsion_structure']
 CLASSDATA_COLS = ['lmfdb_iso', 'aplist']
-MWBSD_COLS = ['lmfdb_label', 'tamagawa_product']
+MWBSD_COLS = ['lmfdb_label', 'tamagawa_product'] + ['real_period', 'special_value',]
 
-def ap_normalized(E, p):
-    ap = E.ap(p)
-    normalization_quotient = 2 * p.sqrt()
-    return np.float32(round(ap / normalization_quotient, NUM_DECIMAL_PLACES))
+# def ap_normalized(E, p):
+#     ap = E.ap(p)
+#     normalization_quotient = 2 * p.sqrt()
+#     return np.float32(round(ap / normalization_quotient, NUM_DECIMAL_PLACES))
 
 # Function to get the data and labels
 def filter_conditions_c_d_i(df):
@@ -52,7 +50,7 @@ def filter_conditions_c_d_i(df):
         assert 2 in isogeny_primes, "Isogeny degree 2 not found"  # this is because the curves have a rational 2 torsion point
         condition_1c = (len(isogeny_primes) == 1)  # condition 1c: 2 is the only isogeny prime
 
-        condition_1d = True  # initialize to True
+        condition_1d = True  # condition 1d: bad primes do not dividie the order of minimal discriminant; initialize to True
         for p in bad_primes:
             ord_p_of_min_disc = minimal_disc.valuation(p)
             order_of_order = ord_p_of_min_disc.valuation(p)
@@ -61,7 +59,7 @@ def filter_conditions_c_d_i(df):
                 break
 
         E_torsion_gens = E.torsion_subgroup().gens()
-        assert len(E_torsion_gens) == 1
+        assert len(E_torsion_gens) == 1  
         P = E_torsion_gens[0]
         if P.order() == 2:
             E_two_torsion_gen = P
@@ -76,7 +74,7 @@ def filter_conditions_c_d_i(df):
         else:
             raise ValueError("Unexpected torsion order")
 
-        assert E_two_torsion_gen.order() == 2
+        assert E_two_torsion_gen.order() == 2   # condition 1g: E(Q)[2] = Z/2Z (part 2)
 
         C = E(E_two_torsion_gen)
         E_prime = E.isogeny_codomain(C)
@@ -95,16 +93,16 @@ def foo(cond_bound=20):
     print(f"Generating data file for curves of conductor up to {cond_bound}...")
     output_file = OUTPUT_FILE  # .format(NUM_AP_VALS, 1, MY_LOCAL_LIM-1)
     ecq_query = {'conductor': {'$lt': cond_bound},
-                'semistable' : True,  # condition 1a
-                'optimality' : 1,  # condition 1e
-                'manin_constant' : {'$mod': [2, 1]} # condition 1f
+                'semistable' : True,  # condition 1a: semistable
+                'optimality' : 1,  # condition 1e: E is optimal
+                'manin_constant' : {'$mod': [2, 1]} # condition 1f: manin constant is odd
                 }
     ecq_payload = ecq.search(ecq_query, projection=ECQ_COLS)
     df = pd.DataFrame(list(ecq_payload))
     assert df['lmfdb_iso'].nunique() == len(df), "Values in the 'lmfdb_iso' column are not unique!"
 
     allowed_torsion_structures = [[2], [4], [6], [8], [10], [12]]
-    df = df[df['torsion_structure'].isin(allowed_torsion_structures)] # condition 1g; this wasn't working at the query level
+    df = df[df['torsion_structure'].isin(allowed_torsion_structures)] # condition 1g: E(Q)[2] = Z/2Z (part 1)
 
     classdata_query = {'lmfdb_iso': {'$in': df['lmfdb_iso'].tolist()}}
     classdata_payload = ec_classdata.search(classdata_query, projection=CLASSDATA_COLS)
@@ -112,7 +110,7 @@ def foo(cond_bound=20):
     classdata_df['a3'] = classdata_df['aplist'].apply(lambda x: x[1])
     classdata_df.drop(columns=['aplist'], inplace=True)
 
-    lmfdb_iso_labels_zero_a3 = classdata_df[classdata_df['a3'] == 0]  # condition 1b
+    lmfdb_iso_labels_zero_a3 = classdata_df[classdata_df['a3'] == 0]  # condition 1b: a3 = 0
 
     df = pd.merge(df, lmfdb_iso_labels_zero_a3, on='lmfdb_iso', how='inner')
 
@@ -120,12 +118,15 @@ def foo(cond_bound=20):
     mwbsd_payload = ec_mwbsd.search(mwbsd_query, projection=MWBSD_COLS)
     mwbsd_df = pd.DataFrame(list(mwbsd_payload))
 
-
     df = pd.merge(df, mwbsd_df, on='lmfdb_label', how='inner')
 
-    df['condition_1h_quantity'] = (df['tamagawa_product'] * df['sha'].round()) / (df['torsion']**2)
-    df['condition_1h_quantity'] = df['condition_1h_quantity'].apply(lambda x : QQ(x).valuation(2))
-    df = df[df['condition_1h_quantity'] == -1]  # condition 1h
+    # df['condition_1h_quantity'] = (df['tamagawa_product'] * df['sha'].round()) / (df['torsion']**2)
+    # df['condition_1h_quantity'] = df['condition_1h_quantity'].apply(lambda x : QQ(x).valuation(2))
+    # df = df[df['condition_1h_quantity'] == -1]  # condition 1h: 2-ord of special_value/(real_period*regulator) = -1
+    df['condition_1h_quantity'] = (df['special_value']/(df['real_period'] * df['regulator']))
+    df['condition_1h_quantity'] = df['condition_1h_quantity'].apply(lambda x: QQ(round(x,5)).valuation(2))
+    df = df[df['bsd_lhs'] == -1] # condition 1h: 2-ord of special_value/(real_period*regulator) = -1
+
     labels = filter_conditions_c_d_i(df)
     # final_labels = []
     # for label in labels:
