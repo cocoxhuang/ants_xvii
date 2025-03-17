@@ -125,7 +125,7 @@ def foo(cond_bound=20):
     # df = df[df['condition_1h_quantity'] == -1]  # condition 1h: 2-ord of special_value/(real_period*regulator) = -1
     df['condition_1h_quantity'] = (df['special_value']/(df['real_period'] * df['regulator']))
     df['condition_1h_quantity'] = df['condition_1h_quantity'].apply(lambda x: QQ(round(x,5)).valuation(2))
-    df = df[df['bsd_lhs'] == -1] # condition 1h: 2-ord of special_value/(real_period*regulator) = -1
+    df = df[df['condition_1h_quantity'] == -1] # condition 1h: 2-ord of special_value/(real_period*regulator) = -1
 
     labels = filter_conditions_c_d_i(df)
     # final_labels = []
@@ -155,7 +155,7 @@ print("Working...")
 
 start_time = time.time()
 
-foo(150)
+foo(1000)
 
 end_time = time.time()
 elapsed_time = end_time - start_time
