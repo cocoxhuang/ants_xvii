@@ -13,9 +13,10 @@ To run this, execute the following command in the terminal:
 from lmfdb import db
 import pandas as pd
 import numpy as np
-
+import pytz
 from sage.all import EllipticCurve, primes_first_n, round, Integer, QQ, RR
 import time
+from datetime import datetime
 
 OUTPUT_FILE = 'data/output.txt'
 
@@ -32,10 +33,17 @@ ECQ_COLS = ['ainvs', 'lmfdb_label', 'conductor', 'rank', 'torsion', 'absD', 'bad
 CLASSDATA_COLS = ['lmfdb_iso', 'aplist']
 MWBSD_COLS = ['lmfdb_label', 'tamagawa_product'] + ['real_period', 'special_value',]
 
-# def ap_normalized(E, p):
-#     ap = E.ap(p)
-#     normalization_quotient = 2 * p.sqrt()
-#     return np.float32(round(ap / normalization_quotient, NUM_DECIMAL_PLACES))
+
+def get_current_time_str():
+    # Get the current time in UTC
+    utc_now = datetime.now(pytz.utc)
+
+    # Convert UTC time to US Eastern Time
+    eastern = pytz.timezone('US/Eastern')
+    eastern_now = utc_now.astimezone(eastern)
+
+    # Format the time in a human-readable format
+    return eastern_now.strftime("Generated at %H:%M (eastern) on %A %d %B %Y")
 
 # Function to get the data and labels
 def filter_conditions_c_d_i(df):
@@ -78,7 +86,15 @@ def filter_conditions_c_d_i(df):
 
         C = E(E_two_torsion_gen)
         E_prime = E.isogeny_codomain(C)
-        E_prime_sha_order = E_prime.sha().an().round()  # the "round" is for the case where analytic rank is > 1
+        try:
+            E_prime_sha_order = E_prime.sha().an().round()  # the "round" is for the case where analytic rank is > 1
+        except Exception as e:
+            print(f"Error calculating sha for curve {curve['lmfdb_label']}: {e}")
+            print("Getting sha value from db")
+            try:
+                E_prime_sha_order = ecq.lucky({'ainvs':[int(x) for x in E_prime.ainvs()]}, projection='sha')
+            except:
+                import pdb; pdb.set_trace()
         condition_1i = (E_prime_sha_order == 1)
 
         conditions = [condition_1c, condition_1d, condition_1i]
@@ -88,16 +104,27 @@ def filter_conditions_c_d_i(df):
 
     return data
 
-def foo(cond_bound=20):
+def foo(cond_upper_bound=None, cond_lower_bound=None):
+    
+    run_summary = f"Params: cond_upper_bound={cond_upper_bound}, cond_lower_bound={cond_lower_bound}"
+    print(run_summary)
 
-    print(f"Generating data file for curves of conductor up to {cond_bound}...")
     output_file = OUTPUT_FILE  # .format(NUM_AP_VALS, 1, MY_LOCAL_LIM-1)
-    ecq_query = {'conductor': {'$lt': cond_bound},
+    ecq_query = {
                 'semistable' : True,  # condition 1a: semistable
                 'optimality' : 1,  # condition 1e: E is optimal
                 'manin_constant' : {'$mod': [2, 1]} # condition 1f: manin constant is odd
-                # 'torsion_structure': {'$in': [[2], [4], [6], [8], [10], [12]]}  # condition 1g: E(Q)[2] = Z/2Z (part 1)
                 }
+    if cond_upper_bound is not None:
+        if cond_lower_bound is not None:
+            ecq_query['conductor'] = {'$gte' : cond_lower_bound,  '$lt': cond_upper_bound}
+        else:
+            ecq_query['conductor'] = {'$lt': cond_upper_bound}
+    else:
+        if cond_lower_bound is not None:
+            ecq_query['conductor'] = {'$gte' : cond_lower_bound}
+
+    print(f"ecq_query={ecq_query}")
     ecq_payload = ecq.search(ecq_query, projection=ECQ_COLS)
     df = pd.DataFrame(list(ecq_payload))
     assert df['lmfdb_iso'].nunique() == len(df), "Values in the 'lmfdb_iso' column are not unique!"
@@ -134,34 +161,20 @@ def foo(cond_bound=20):
     df = df[df['condition_1h_quantity'] == -1]  # condition 1h: 2-ord of special_value/(real_period*regulator) = -1
 
     labels = filter_conditions_c_d_i(df)
-    # final_labels = []
-    # for label in labels:
-    #     print(f"Checking curve {label}...")
-    #     tamagawa_product = ec_mwbsd.lookup(label, projection='tamagawa_product')
-    #     sha = ecq.lookup(label, projection='sha')
-    #     torsion_order = ecq.lookup(label, projection='torsion')
-    #     the_quantity = QQ((tamagawa_product * sha) / (torsion_order)**2).valuation(2)
-    #     if the_quantity == -1:
-    #         final_labels.append(label)
-
-    # Export labels to a text file
+    
+    current_time = get_current_time_str()
     with open(output_file, 'w') as f:
+        # Write the timestamp at the top of the file
+        f.write(f"{current_time}\n")
+        f.write(f"{run_summary}\n\n")
         for label in labels:
             f.write(f"{label}\n")
 
     print(f"SUCCESS!!! Data file saved to {output_file}.")
 
-    final_cremona_labels = []
-    for label in labels:
-        c_label = ecq.lookup(label, projection='Clabel')
-        final_cremona_labels.append(c_label)
-    print(f"The labels are {final_cremona_labels}.")
-
-print("Working...")
-
 start_time = time.time()
 
-foo(1000)
+foo()
 
 end_time = time.time()
 elapsed_time = end_time - start_time
