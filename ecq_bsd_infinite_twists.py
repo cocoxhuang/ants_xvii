@@ -105,6 +105,8 @@ def filter_conditions_c_d_i(df):
     return data
 
 def foo(cond_upper_bound=None, cond_lower_bound=None):
+
+    start_time = time.time()
     
     run_summary = f"Params: cond_upper_bound={cond_upper_bound}, cond_lower_bound={cond_lower_bound}"
     print(run_summary)
@@ -163,23 +165,21 @@ def foo(cond_upper_bound=None, cond_lower_bound=None):
     labels = filter_conditions_c_d_i(df)
     
     current_time = get_current_time_str()
+    end_time = time.time()
+    elapsed_time = end_time - start_time
+
+    minutes = int(elapsed_time // 60)
+    seconds = int(elapsed_time % 60)
+
     with open(output_file, 'w') as f:
         # Write the timestamp at the top of the file
         f.write(f"{current_time}\n")
-        f.write(f"{run_summary}\n\n")
+        f.write(f"{run_summary}\n")
+        f.write(f"Run took: {minutes} minutes {seconds} seconds\n\n")
         for label in labels:
             f.write(f"{label}\n")
 
     print(f"SUCCESS!!! Data file saved to {output_file}.")
 
-start_time = time.time()
-
 foo()
 
-end_time = time.time()
-elapsed_time = end_time - start_time
-
-minutes = int(elapsed_time // 60)
-seconds = int(elapsed_time % 60)
-
-print(f"Elapsed time: {minutes} minutes {seconds} seconds")
