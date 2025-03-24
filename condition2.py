@@ -56,11 +56,11 @@ def get_E_data(labels):
 def generate_Ms(E_data, Ms):
     '''
     Input: 
-    E_data: a dictionary of data of elliptic curves of the format: e.g.
+    E_data: a dictionary of data of one elliptic curve of the format: e.g.
         {p: a_p, 'conductor': conductor of E}
     Ms: a dictionary of squarefree integers and their prime factors: e.g.
         {M: [list of prime factors of M]}
-    Output: a list of quadratic twists of the elliptic curves in E_list
+    Output: a list of BSD quadratic twists of the given elliptic curve
     '''
     res = []
 
@@ -71,7 +71,7 @@ def generate_Ms(E_data, Ms):
     for M in Ms:
         M_div = Ms[M]   # list of prime factors of M
 
-        # condition 2(b): all M divisors do not divide ap
+        # condition 2(b): (M,N) = 1 and all M divisors do not divide ap
         condition2b = True
         for p in M_div:
             if p in bad_primes:
@@ -100,8 +100,11 @@ def generate_Ms(E_data, Ms):
         # condition 2(d): bad primes and 2 all split in Q(sqrt(M))
         condition2d = True
         for p in bad_primes_2:
-            a = M if M % 4 == 1 else 4*M
-            if kronecker(a,p) != 1:
+            if M % 8 != 1:  # for p = 2
+                condition2d = False
+                break
+            d = M if M % 4 == 1 else 4*M    # for odd primes
+            if kronecker(d,p) != 1:
                 condition2d = False
                 break
         if not condition2d:
@@ -115,9 +118,9 @@ def generate_Ms(E_data, Ms):
 def generate_BSD_quadratic_twists(E_list, M_upper_bound = 100):
     '''
     Input: a dictionary of elliptic curves E_list and an upper bound M_upper_bound
-    E_list: a dictionary of elliptic curves of the format 
+    E_list: a dictionary of elliptic curves and their data of the format 
         {label: {p: a_p, 'conductor': conductor of E} }
-    Output: a list of quadratic twists of the elliptic curves in E_list
+    Output: a list of quadratic twists corresponding to the elliptic curves in E_list
     '''
     res = {}
 
