@@ -1,9 +1,10 @@
-from sage.all import EllipticCurve, primes, round, Integer, QQ, RR, kronecker
+from sage.all import EllipticCurve, primes, round, Integer, QQ, RR, kronecker, ZZ
 import copy
 from lmfdb import db
 import pandas as pd
 import json
 
+ecq = db.ec_curvedata
 
 def squarefree_integers(M_upper_bound):
     '''
@@ -27,14 +28,13 @@ def get_E_data(labels):
     res = {}
 
     # Load the elliptic curve table from the LMFDB
-    ecq = db.ec_curvedata
     ec_classdata = db.ec_classdata
     ec_mwbsd = db.ec_mwbsd
 
      # create a dictionary of {'lmfdb_label' : {p : a_p, 'conductor': conductor}}}
     ecq_payload = ecq.search({"lmfdb_label": {"$in": labels}}, projection=['lmfdb_label','conductor','lmfdb_iso'])
     df_ecq = pd.DataFrame(list(ecq_payload))
-    
+
     classdata_payload = ec_classdata.search({'lmfdb_iso': {'$in': df_ecq['lmfdb_iso'].tolist()}}, projection=['lmfdb_iso','aplist'])
     df_class = pd.DataFrame(list(classdata_payload))
     # seperate the aplist into individual columns
@@ -55,7 +55,7 @@ def get_E_data(labels):
 
 def generate_Ms(E_data, Ms):
     '''
-    Input: 
+    Input:
     E_data: a dictionary of data of one elliptic curve of the format: e.g.
         {p: a_p, 'conductor': conductor of E}
     Ms: a dictionary of squarefree integers and their prime factors: e.g.
@@ -96,7 +96,7 @@ def generate_Ms(E_data, Ms):
         if not condition2c:
             # print(M, "condition 2(c) not satisfied")
             continue
-        
+
         # condition 2(d): bad primes and 2 all split in Q(sqrt(M))
         condition2d = True
         for p in bad_primes_2:
@@ -115,10 +115,10 @@ def generate_Ms(E_data, Ms):
 
     return res
 
-def generate_BSD_quadratic_twists(E_list, M_upper_bound = 100):
+def generate_BSD_quadratic_twists(E_list, M_upper_bound=100):
     '''
     Input: a dictionary of elliptic curves E_list and an upper bound M_upper_bound
-    E_list: a dictionary of elliptic curves and their data of the format 
+    E_list: a dictionary of elliptic curves and their data of the format
         {label: {p: a_p, 'conductor': conductor of E} }
     Output: a list of quadratic twists corresponding to the elliptic curves in E_list
     '''
@@ -134,8 +134,52 @@ labels_path = 'data/output.txt'
 with open(labels_path, 'r') as file:
     labels = [line.strip() for line in file.readlines()]
 
-E_list = get_E_data(labels)
-res = generate_BSD_quadratic_twists(E_list, M_upper_bound = 100)
-# dump the res to a json file
+# E_list = get_E_data(labels)
+# res = generate_BSD_quadratic_twists(E_list, M_upper_bound = 100)
+# # dump the res to a json file
+# with open('data/res.json', 'w') as f:
+#     json.dump(res, f)
+
+def check_condition_2d(M, bad_primes_2):
+    # we want to check that both 2 and 73 split in Q(sqrt(M))
+    delta = M if M % 4 == 1 else 4*M
+    return all([kronecker(delta,p) == 1 for p in bad_primes_2])
+
+def get_admissible_twists(E,B):
+    cond = E.conductor()
+    bad_primes_2 = (2*cond).prime_divisors()
+    possible_twists = [M for M in range(2,B) if Integer(M).is_squarefree() and M%3 != 0 and M%cond != 0]
+    admissible_twists = []
+    for M in possible_twists:
+        condition_2d = check_condition_2d(M, bad_primes_2)
+        if not condition_2d:
+            continue
+        prime_divs = ZZ(M).prime_divisors()
+        condition_2b = True
+        condition_2c = True
+        for p in prime_divs:
+            if p % 4 != 1:
+                condition_2c = False
+                break
+            ap_val = E.ap(p)
+            if ap_val % p == 0:
+                condition_2b = False
+                break
+            N_p = p + 1 - ap_val
+            if N_p.valuation(2) != 1:
+                condition_2c = False
+                break
+
+        if all([condition_2b, condition_2c, condition_2d]):
+            admissible_twists.append(M)
+    return admissible_twists
+
+B = 10000
+res = {}
+for label in labels[4:]:
+    ainvs = ecq.lookup(label, projection='ainvs')
+    E = EllipticCurve(ainvs)
+    res[label] = get_admissible_twists(E,B)
+
 with open('data/res.json', 'w') as f:
-    json.dump(res, f)
+    json.dump(res, f, indent=4)
