@@ -5,7 +5,7 @@ a family of quadratic twists that satisfy the full BSD conjecture formula.
 
 To run this, execute the following command in the terminal:
 
-    sage -python ecq_bsd_infinite_twists.py
+    sage -python ecq_bsd_infinite_twists_v2.py
 
 """
 
@@ -73,6 +73,8 @@ def filter_conditions_c_d(df):
 
     return data
 
+
+
 def foo(cond_upper_bound=None, cond_lower_bound=None):
 
     start_time = time.time()
@@ -86,7 +88,6 @@ def foo(cond_upper_bound=None, cond_lower_bound=None):
                 'optimality' : 1,  # condition 1e: E is optimal
                 'manin_constant' : {'$mod': [2, 1]}, # condition 1f: manin constant is odd
                 'signD' : {'$lt': 0},  # condition 1g: sign of the discriminant is negative
-                # 'torsion_primes' : {'$notcontains': [2]} 
                 }
     if cond_upper_bound is not None:
         if cond_lower_bound is not None:
@@ -120,7 +121,7 @@ def foo(cond_upper_bound=None, cond_lower_bound=None):
 
     df = df[~df['torsion_primes'].apply(lambda x: 2 in x)]  # condition 1h: E[2](Q) = 0
 
-    df['real_components'] = df['lmfdb_label'].apply(lambda x: EllipticCurve(x).real_components())
+    df['real_components'] = df['ainvs'].apply(lambda x: EllipticCurve(x).real_components())  
     df['my_condition_1i_quantity'] = (df['tamagawa_product'] * df['sha'].round()) / (df['torsion']**2 * df['real_components'])
     # df['my_condition_1i_quantity'] = df['my_condition_1i_quantity'] * df['regulator']
     df['my_condition_1i_quantity'] = df['my_condition_1i_quantity'].apply(lambda x : QQ(RR(x)).valuation(2))
@@ -154,5 +155,5 @@ def foo(cond_upper_bound=None, cond_lower_bound=None):
     
     print(f"SUCCESS!!! Data file saved to {output_file}.")
 
-foo(cond_upper_bound=10000)
+foo()
 
