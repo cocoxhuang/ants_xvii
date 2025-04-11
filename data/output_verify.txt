@@ -1,0 +1,18 @@
+Generated at 11:47 (eastern) on Friday 11 April 2025
+Params: cond_upper_bound=150, cond_lower_bound=None
+Run took: 0 minutes 4 seconds
+
+46.a2
+69.a2
+70.a4
+77.c2
+78.a4
+82.a2
+85.a1
+94.a2
+102.c5
+114.a1
+130.b4
+138.c4
+141.b2
+142.b2

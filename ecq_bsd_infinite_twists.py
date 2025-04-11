@@ -18,7 +18,7 @@ from sage.all import EllipticCurve, primes_first_n, round, Integer, QQ, RR
 import time
 from datetime import datetime
 
-OUTPUT_FILE = 'data/output.txt'
+OUTPUT_FILE = 'data/output_verify.txt'
 
 # Load the elliptic curve table from the LMFDB
 ecq = db.ec_curvedata
@@ -45,6 +45,13 @@ def get_current_time_str():
     # Format the time in a human-readable format
     return eastern_now.strftime("Generated at %H:%M (eastern) on %A %d %B %Y")
 
+
+def is_ramified(bad_primes, minimal_disc):
+    return all(
+        any(minimal_disc.valuation(p) % ell != 0 for p in bad_primes if p != ell)
+        for ell in bad_primes
+    )
+
 # Function to get the data and labels
 def filter_conditions_c_d_i(df):
     data = []
@@ -58,13 +65,7 @@ def filter_conditions_c_d_i(df):
         assert 2 in isogeny_primes, "Isogeny degree 2 not found"  # this is because the curves have a rational 2 torsion point
         condition_1c = (len(isogeny_primes) == 1)  # condition 1c: 2 is the only isogeny prime
 
-        condition_1d = True  # condition 1d: bad primes do not dividie the order of minimal discriminant; initialize to True
-        for p in bad_primes:
-            ord_p_of_min_disc = minimal_disc.valuation(p)
-            order_of_order = ord_p_of_min_disc.valuation(p)
-            if order_of_order > 0:
-                condition_1d = False
-                break
+        condition_1d = is_ramified(bad_primes, minimal_disc)
 
         E_torsion_gens = E.torsion_subgroup().gens()
         assert len(E_torsion_gens) == 1
@@ -107,15 +108,16 @@ def filter_conditions_c_d_i(df):
 def foo(cond_upper_bound=None, cond_lower_bound=None):
 
     start_time = time.time()
-    
+
     run_summary = f"Params: cond_upper_bound={cond_upper_bound}, cond_lower_bound={cond_lower_bound}"
     print(run_summary)
 
     output_file = OUTPUT_FILE  # .format(NUM_AP_VALS, 1, MY_LOCAL_LIM-1)
     ecq_query = {
                 'semistable' : True,  # condition 1a: semistable
+                'num_bad_primes' : {'$gte' : 2},  # condition 1d: at least two bad prime
                 'optimality' : 1,  # condition 1e: E is optimal
-                'manin_constant' : {'$mod': [2, 1]} # condition 1f: manin constant is odd
+                'manin_constant' : {'$mod': [1, 2]} # condition 1f: manin constant is odd, using psycodict's ordering on '$mod
                 }
     if cond_upper_bound is not None:
         if cond_lower_bound is not None:
@@ -139,10 +141,8 @@ def foo(cond_upper_bound=None, cond_lower_bound=None):
     classdata_df = pd.DataFrame(list(classdata_payload))
     classdata_df['a3'] = classdata_df['aplist'].apply(lambda x: x[1])
     classdata_df.drop(columns=['aplist'], inplace=True)
-
-    lmfdb_iso_labels_zero_a3 = classdata_df[classdata_df['a3'] == 0]  # condition 1b: a3 = 0
-
-    df = pd.merge(df, lmfdb_iso_labels_zero_a3, on='lmfdb_iso', how='inner')
+    lmfdb_iso_labels_a3_cond = classdata_df[classdata_df['a3'].isin({-2, -1, 0, 1, 2})] # condition 1b: a3 in {-2, -1, 0, 1, 2}
+    df = pd.merge(df, lmfdb_iso_labels_a3_cond, on='lmfdb_iso', how='inner')
 
     mwbsd_query = {'lmfdb_label': {'$in': df['lmfdb_label'].tolist()}}
     mwbsd_payload = ec_mwbsd.search(mwbsd_query, projection=MWBSD_COLS)
@@ -163,7 +163,7 @@ def foo(cond_upper_bound=None, cond_lower_bound=None):
     df = df[df['condition_1h_quantity'] == -1]  # condition 1h: 2-ord of special_value/(real_period*regulator) = -1
 
     labels = filter_conditions_c_d_i(df)
-    
+
     current_time = get_current_time_str()
     end_time = time.time()
     elapsed_time = end_time - start_time
@@ -181,5 +181,11 @@ def foo(cond_upper_bound=None, cond_lower_bound=None):
 
     print(f"SUCCESS!!! Data file saved to {output_file}.")
 
-foo()
+    final_cremona_labels = []
+    for label in labels:
+        c_label = ecq.lookup(label, projection='Clabel')
+        final_cremona_labels.append(c_label)
+    print(f"The labels are {final_cremona_labels}.")
+
+foo(cond_upper_bound=150)
 
