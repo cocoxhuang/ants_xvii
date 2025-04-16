@@ -18,7 +18,8 @@ from sage.all import EllipticCurve, primes_first_n, round, Integer, QQ, RR
 import time
 from datetime import datetime
 
-OUTPUT_FILE = 'data/output_verify.txt'
+LMFDB_FILE = 'data/lmfdb_labels.txt'
+CREMONA_FILE = 'data/cremona_labels.txt'
 
 # Load the elliptic curve table from the LMFDB
 ecq = db.ec_curvedata
@@ -29,9 +30,10 @@ ec_mwbsd = db.ec_mwbsd
 # For now we set a limit to make things faster
 
 NUM_AP_VALS = 100  # Number of primes to use for the a_p values
-ECQ_COLS = ['ainvs', 'lmfdb_label', 'conductor', 'rank', 'torsion', 'absD', 'bad_primes', 'manin_constant', 'regulator', 'sha', 'lmfdb_iso', 'torsion_structure']
+ECQ_COLS = ['ainvs', 'lmfdb_label', 'conductor', 'rank', 'torsion', 'absD', 'bad_primes', 'manin_constant', 
+'regulator', 'sha', 'lmfdb_iso', 'torsion_structure', 'torsion_primes', 'signD']
 CLASSDATA_COLS = ['lmfdb_iso', 'aplist']
-MWBSD_COLS = ['lmfdb_label', 'tamagawa_product'] + ['real_period', 'special_value',]
+MWBSD_COLS = ['lmfdb_label', 'tamagawa_product'] + ['real_period', 'special_value']
 
 
 def get_current_time_str():
@@ -52,21 +54,82 @@ def is_ramified(bad_primes, minimal_disc):
         for ell in bad_primes
     )
 
+def ordinary_357(a_ps):
+    '''
+    returns the ordinary primes among 3,5,7
+    '''
+    primes = [3,5,7]
+    return [primes[i] for i in range(len(primes)) if a_ps[i] % primes[i] != 0]
+
+def get_a3_a5_a7(df):
+    classdata_query = {'lmfdb_iso': {'$in': df['lmfdb_iso'].tolist()}}
+    classdata_payload = ec_classdata.search(classdata_query, projection=CLASSDATA_COLS)
+    classdata_df = pd.DataFrame(list(classdata_payload))
+    classdata_df['a3'] = classdata_df['aplist'].apply(lambda x: x[1])
+    classdata_df['a5'] = classdata_df['aplist'].apply(lambda x: x[2])
+    classdata_df['a7'] = classdata_df['aplist'].apply(lambda x: x[3])
+    classdata_df.drop(columns=['aplist'], inplace=True)
+    return classdata_df
+
+def merge_mwbsd(df):
+    mwbsd_query = {'lmfdb_label': {'$in': df['lmfdb_label'].tolist()}}
+    mwbsd_payload = ec_mwbsd.search(mwbsd_query, projection=MWBSD_COLS)
+    mwbsd_df = pd.DataFrame(list(mwbsd_payload))
+    df = pd.merge(df, mwbsd_df, on='lmfdb_label', how='inner')
+    return df
+
 # Function to get the data and labels
-def filter_conditions_c_d_i(df):
-    data = []
+def filter_CONDITIONs_c_d(df):
+    data_idx = []
     for index,curve in df.iterrows():
         ainvs = curve['ainvs']
         minimal_disc = Integer(curve['absD'])
         bad_primes = curve['bad_primes']
 
+        # CONDITION 1c: irreducibility CONDITION at certain odd primes
+        CONDITION_1c = True
+        a_3, a_5, a_7 = curve['a3'], curve['a5'], curve['a7']
+        if 2 in bad_primes:
+            non_isogeny_primes = bad_primes.copy()
+            non_isogeny_primes.remove(2)
+            non_isogeny_primes = set(non_isogeny_primes)
+        else:
+            non_isogeny_primes = set(bad_primes)
+        non_isogeny_primes.update(ordinary_357([a_3, a_5, a_7]))
+    
         E = EllipticCurve(ainvs)
         isogeny_primes = [phi.degree() for phi in E.isogenies_prime_degree()]
-        assert 2 in isogeny_primes, "Isogeny degree 2 not found"  # this is because the curves have a rational 2 torsion point
-        condition_1c = (len(isogeny_primes) == 1)  # condition 1c: 2 is the only isogeny prime
+        CONDITION_1c = (all(p not in isogeny_primes for p in non_isogeny_primes))
 
-        condition_1d = is_ramified(bad_primes, minimal_disc)
+        # condititon 1d: ramification CONDITION at bad primes
+        CONDITION_1d = is_ramified(bad_primes, minimal_disc)
 
+        CONDITIONs = [CONDITION_1c, CONDITION_1d]
+
+        if all(CONDITIONs):
+            data_idx.append(index)
+
+    return df.loc[data_idx]
+
+# CONDITION 1g: E(Q)[2] = Z/2Z
+def filter_CONDITIONs_g(df):
+    allowed_torsion_structures = [[2], [4], [6], [8], [10], [12]]
+    df = df[df['torsion_structure'].isin(allowed_torsion_structures)] 
+    data_idx = []
+    for index,curve in df.iterrows():
+        ainvs = curve['ainvs']
+        E = EllipticCurve(ainvs)
+        E_torsion_gens = E.torsion_subgroup().gens()
+        if len(E_torsion_gens) == 1:
+            data_idx.append(index)
+    return df.loc[data_idx]
+
+def filter_CONDITIONs_i(df):
+    data_idx = []
+    for index,curve in df.iterrows():
+        ainvs = curve['ainvs']
+        E = EllipticCurve(ainvs)
+        # find the generator of the 2-torsion subgroup
         E_torsion_gens = E.torsion_subgroup().gens()
         assert len(E_torsion_gens) == 1
         P = E_torsion_gens[0]
@@ -82,9 +145,8 @@ def filter_conditions_c_d_i(df):
             E_two_torsion_gen = 5 * P
         else:
             raise ValueError("Unexpected torsion order")
-
-        assert E_two_torsion_gen.order() == 2   # condition 1g: E(Q)[2] = Z/2Z (part 2)
-
+        assert E_two_torsion_gen.order() == 2   
+        # construct E' and retrieve the order of sha(E')
         C = E(E_two_torsion_gen)
         E_prime = E.isogeny_codomain(C)
         try:
@@ -96,28 +158,32 @@ def filter_conditions_c_d_i(df):
                 E_prime_sha_order = ecq.lucky({'ainvs':[int(x) for x in E_prime.ainvs()]}, projection='sha')
             except:
                 import pdb; pdb.set_trace()
-        condition_1i = (E_prime_sha_order == 1)
-
-        conditions = [condition_1c, condition_1d, condition_1i]
-
-        if all(conditions):
-            data.append(curve['lmfdb_label'])
-
-    return data
+        if E_prime_sha_order == 1:
+            data_idx.append(index)
+    return df.loc[data_idx]
 
 def foo(cond_upper_bound=None, cond_lower_bound=None):
 
+    # get ready to work
     start_time = time.time()
-
     run_summary = f"Params: cond_upper_bound={cond_upper_bound}, cond_lower_bound={cond_lower_bound}"
     print(run_summary)
-
-    output_file = OUTPUT_FILE  # .format(NUM_AP_VALS, 1, MY_LOCAL_LIM-1)
+    lmfdb_file = LMFDB_FILE  # .format(NUM_AP_VALS, 1, MY_LOCAL_LIM-1)
+    cremona_file = CREMONA_FILE
+    
+    #----------------------
+    # Common criteria from [CLZ20, Theorem 1.5] and [Zha16, Theorem 1.1 - 1.4]
+    # [CLZ20] : L. Cai, C. Li and S. Zhai, On the 2-part of the Birch and Swinnerton-Dyer conjecture for quadratic twists of elliptic
+    # curves, J. Lond. Math. Soc. (2) 101 (2020), no. 2, 714–734.
+    # [Zha16] :  S. Zhai, Non-vanishing theorems for quadratic twists of elliptic curves, Asian J. Math. 20 (2016), no. 3, 475–502
+    #----------------------
+    # get curve data from the LMFDB
+    # checking CONDITIONs 1a, 1d, 1e, 1f
     ecq_query = {
-                'semistable' : True,  # condition 1a: semistable
-                'num_bad_primes' : {'$gte' : 2},  # condition 1d: at least two bad prime
-                'optimality' : 1,  # condition 1e: E is optimal
-                'manin_constant' : {'$mod': [1, 2]} # condition 1f: manin constant is odd, using psycodict's ordering on '$mod
+                'semistable' : True,  # CONDITION 1a: semistable
+                'num_bad_primes' : {'$gte' : 2},  # CONDITION 1d: at least two bad prime
+                'optimality' : 1,  # CONDITION 1e: E is optimal
+                'manin_constant' : {'$mod': [1, 2]} # CONDITION 1f: manin constant is odd, using psycodict's ordering on '$mod
                 }
     if cond_upper_bound is not None:
         if cond_lower_bound is not None:
@@ -127,65 +193,92 @@ def foo(cond_upper_bound=None, cond_lower_bound=None):
     else:
         if cond_lower_bound is not None:
             ecq_query['conductor'] = {'$gte' : cond_lower_bound}
-
     print(f"ecq_query={ecq_query}")
     ecq_payload = ecq.search(ecq_query, projection=ECQ_COLS)
     df = pd.DataFrame(list(ecq_payload))
     assert df['lmfdb_iso'].nunique() == len(df), "Values in the 'lmfdb_iso' column are not unique!"
 
-    allowed_torsion_structures = [[2], [4], [6], [8], [10], [12]]
-    df = df[df['torsion_structure'].isin(allowed_torsion_structures)] # condition 1g: E(Q)[2] = Z/2Z (part 1)
-
-    classdata_query = {'lmfdb_iso': {'$in': df['lmfdb_iso'].tolist()}}
-    classdata_payload = ec_classdata.search(classdata_query, projection=CLASSDATA_COLS)
-    classdata_df = pd.DataFrame(list(classdata_payload))
-    classdata_df['a3'] = classdata_df['aplist'].apply(lambda x: x[1])
-    classdata_df.drop(columns=['aplist'], inplace=True)
-    lmfdb_iso_labels_a3_cond = classdata_df[classdata_df['a3'].isin({-2, -1, 0, 1, 2})] # condition 1b: a3 in {-2, -1, 0, 1, 2}
+    # CONDITION 1b: a3 in {-2, -1, 0, 1, 2}
+    classdata_df = get_a3_a5_a7(df)
+    lmfdb_iso_labels_a3_cond = classdata_df[classdata_df['a3'].isin({-2, -1, 0, 1, 2})]
     df = pd.merge(df, lmfdb_iso_labels_a3_cond, on='lmfdb_iso', how='inner')
 
-    mwbsd_query = {'lmfdb_label': {'$in': df['lmfdb_label'].tolist()}}
-    mwbsd_payload = ec_mwbsd.search(mwbsd_query, projection=MWBSD_COLS)
-    mwbsd_df = pd.DataFrame(list(mwbsd_payload))
+    # CONDITION 1c: 2 is the only isogeny prime
+    # CONDITION 1d: ramification CONDITION at bad primes
+    df = filter_CONDITIONs_c_d(df)
 
-    df = pd.merge(df, mwbsd_df, on='lmfdb_label', how='inner')
+    #----------------------
+    # check the residual criteria from [CLZ20, Theorem 1.5]
+    #----------------------
+    # CONDITION 1g: E(Q)[2] = Z/2Z
+    df_CLZ20 = filter_CONDITIONs_g(df)
+    
+    # CONDITION 1h: 2-ord of special_value/(real_period*regulator) = -1
+    df_CLZ20 = merge_mwbsd(df_CLZ20)
+    df_CLZ20['L_alg'] = (df_CLZ20['special_value']/(df_CLZ20['real_period'] * df_CLZ20['regulator']))
+    df_CLZ20['L_alg'] = df_CLZ20['L_alg'].apply(lambda x: QQ(RR(x)).valuation(2))    # now L_alg is 2-valuation of the quantity
+    df_CLZ20 = df_CLZ20[df_CLZ20['L_alg'] == -1]  
+    # df['my_CONDITION_1h_quantity'] = (df['tamagawa_product'] * df['sha'].round()) / (df['torsion']**2)
+    # df['my_CONDITION_1h_quantity'] = df['my_CONDITION_1h_quantity'].apply(lambda x : QQ(x).valuation(2))
+    # df['CONDITION_1h_quantity'] = (df['special_value']/(df['real_period'] * df['regulator']))
+    # df['CONDITION_1h_quantity'] = df['CONDITION_1h_quantity'].apply(lambda x: QQ(RR(x)).valuation(2))
+    # assert df['my_CONDITION_1h_quantity'].equals(df['CONDITION_1h_quantity']), \
+    # "The values in 'my_CONDITION_1h_quantity' and 'CONDITION_1h_quantity' are not identical!"
 
-    df['my_condition_1h_quantity'] = (df['tamagawa_product'] * df['sha'].round()) / (df['torsion']**2)
-    df['my_condition_1h_quantity'] = df['my_condition_1h_quantity'].apply(lambda x : QQ(x).valuation(2))
-    # df = df[df['my_condition_1h_quantity'] == -1]  # condition 1h: 2-ord of special_value/(real_period*regulator) = -1
-    df['condition_1h_quantity'] = (df['special_value']/(df['real_period'] * df['regulator']))
-    df['condition_1h_quantity'] = df['condition_1h_quantity'].apply(lambda x: QQ(RR(x)).valuation(2))
-    # df = df[df['condition_1h_quantity'] == -1] # condition 1h: 2-ord of special_value/(real_period*regulator) = -1
+    # condtion 1i: sha(E') = 1
+    df_CLZ20 = filter_CONDITIONs_i(df_CLZ20)
 
-    assert df['my_condition_1h_quantity'].equals(df['condition_1h_quantity']), \
-    "The values in 'my_condition_1h_quantity' and 'condition_1h_quantity' are not identical!"
+    # give the source of the data
+    df_CLZ20['source'] = 'CLZ20'
+    #----------------------
+    # check the residual criteria from [Zha16, Theorem 1.1 - 1.4]
+    #----------------------
+    # CONDITION 1g: no 2 torsion + ( CONDITION on L_alg based on signD )
+    df_Zha16 = df[~df['torsion_primes'].apply(lambda x: 2 in x)]    # CONDITION 1h: E[2](Q) = 0
+    df_Zha16 = merge_mwbsd(df_Zha16)
+    df_Zha16['real_components'] = df_Zha16['ainvs'].apply(lambda x: EllipticCurve(x).real_components())  
+    df_Zha16['L_alg'] = (df_Zha16['special_value'] * df_Zha16['real_components']/(df_Zha16['real_period']))
+    df_Zha16['L_alg'] = df_Zha16['L_alg'].apply(lambda x: QQ(RR(x)).valuation(2))   # now L_alg is 2-valuation of the quantity
+    df_Zha16 = df_Zha16[( (df_Zha16['L_alg'] == 0) & (df_Zha16['signD'] < 0) )| ( (df_Zha16['L_alg'] == 1) & (df_Zha16['signD'] > 0) )]
 
-    df = df[df['condition_1h_quantity'] == -1]  # condition 1h: 2-ord of special_value/(real_period*regulator) = -1
-
-    labels = filter_conditions_c_d_i(df)
-
+    # give the source of the data
+    df_Zha16['source'] = 'Zha16'
+    # -----------------------
+    # save eligible curves results to text files
+    # -----------------------
+    # combine the results from CLZ20 and Zha16
+    df = pd.concat([df_CLZ20, df_Zha16])
+    labels = df['lmfdb_label'].tolist()
+    sources = df['source'].tolist()
+    res = dict(zip(labels, sources))
+    # calculate the run time
     current_time = get_current_time_str()
     end_time = time.time()
     elapsed_time = end_time - start_time
-
     minutes = int(elapsed_time // 60)
     seconds = int(elapsed_time % 60)
-
-    with open(output_file, 'w') as f:
+    # save lmfdb labels
+    with open(lmfdb_file, 'w') as f:
         # Write the timestamp at the top of the file
         f.write(f"{current_time}\n")
         f.write(f"{run_summary}\n")
         f.write(f"Run took: {minutes} minutes {seconds} seconds\n\n")
-        for label in labels:
-            f.write(f"{label}\n")
-
-    print(f"SUCCESS!!! Data file saved to {output_file}.")
-
+        for label, source in res.items():
+            f.write(f"{label}, {source}\n")
+    # save cremona labels
     final_cremona_labels = []
     for label in labels:
         c_label = ecq.lookup(label, projection='Clabel')
         final_cremona_labels.append(c_label)
-    print(f"The labels are {final_cremona_labels}.")
+    cremona_res = dict(zip(final_cremona_labels, sources))
+    with open(cremona_file, 'w') as f:
+        # Write the timestamp at the top of the file
+        f.write(f"{current_time}\n")
+        f.write(f"{run_summary}\n")
+        f.write(f"Run took: {minutes} minutes {seconds} seconds\n\n")
+        for label, source in cremona_res.items():
+            f.write(f"{label}, {source}\n")
+    print(f"SUCCESS!!! Data files saved to {lmfdb_file} and {cremona_file}.")
 
 foo(cond_upper_bound=150)
 

@@ -1,0 +1,25 @@
+Generated at 14:27 (eastern) on Wednesday 16 April 2025
+Params: cond_upper_bound=150, cond_lower_bound=None
+Run took: 0 minutes 3 seconds
+
+46a1, CLZ20
+69a1, CLZ20
+70a1, CLZ20
+77c1, CLZ20
+78a1, CLZ20
+82a1, CLZ20
+85a1, CLZ20
+94a1, CLZ20
+102b1, CLZ20
+114b1, CLZ20
+130b1, CLZ20
+138c1, CLZ20
+141b1, CLZ20
+142c1, CLZ20
+57a1, Zha16
+106d1, Zha16
+115a1, Zha16
+118d1, Zha16
+118c1, Zha16
+141d1, Zha16
+141e1, Zha16
