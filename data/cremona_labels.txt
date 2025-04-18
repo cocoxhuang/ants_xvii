@@ -1,4 +1,4 @@
-Generated at 14:27 (eastern) on Wednesday 16 April 2025
+Generated at 10:15 (eastern) on Friday 18 April 2025
 Params: cond_upper_bound=150, cond_lower_bound=None
 Run took: 0 minutes 3 seconds
 
@@ -16,10 +16,17 @@ Run took: 0 minutes 3 seconds
 138c1, CLZ20
 141b1, CLZ20
 142c1, CLZ20
+42a1, Zha16
 57a1, Zha16
+62a1, Zha16
+66b1, Zha16
+102a1, Zha16
+105a1, Zha16
 106d1, Zha16
+114c1, Zha16
 115a1, Zha16
 118d1, Zha16
 118c1, Zha16
 141d1, Zha16
 141e1, Zha16
+141c1, Zha16

@@ -14,7 +14,7 @@ from lmfdb import db
 import pandas as pd
 import numpy as np
 import pytz
-from sage.all import EllipticCurve, primes_first_n, round, Integer, QQ, RR
+from sage.all import EllipticCurve, primes_first_n, round, Integer, QQ, RR, ZZ
 import time
 from datetime import datetime
 
@@ -162,6 +162,16 @@ def filter_CONDITIONs_i(df):
             data_idx.append(index)
     return df.loc[data_idx]
 
+def ord_2_two_torsion_order(torsion_structure, torsion):
+    '''
+    returns ord_2( the order of the 2-torsion subgroup)
+    '''
+    if len(torsion_structure) == 1:
+        two_torsion_val_2 = min(ZZ(torsion).valuation(2), 1)
+    else:
+        two_torsion_val_2 = ZZ(torsion_structure[0]).valuation(2) + ZZ(torsion_structure[1]).valuation(2)
+    return two_torsion_val_2
+
 def foo(cond_upper_bound=None, cond_lower_bound=None):
 
     # get ready to work
@@ -233,13 +243,32 @@ def foo(cond_upper_bound=None, cond_lower_bound=None):
     #----------------------
     # check the residual criteria from [Zha16, Theorem 1.1 - 1.4]
     #----------------------
-    # CONDITION 1g: no 2 torsion + ( CONDITION on L_alg based on signD )
-    df_Zha16 = df[~df['torsion_primes'].apply(lambda x: 2 in x)]    # CONDITION 1h: E[2](Q) = 0
+    # CONDITION 1g: 
+    df_Zha16 = df
     df_Zha16 = merge_mwbsd(df_Zha16)
     df_Zha16['real_components'] = df_Zha16['ainvs'].apply(lambda x: EllipticCurve(x).real_components())  
-    df_Zha16['L_alg'] = (df_Zha16['special_value'] * df_Zha16['real_components']/(df_Zha16['real_period']))
-    df_Zha16['L_alg'] = df_Zha16['L_alg'].apply(lambda x: QQ(RR(x)).valuation(2))   # now L_alg is 2-valuation of the quantity
-    df_Zha16 = df_Zha16[( (df_Zha16['L_alg'] == 0) & (df_Zha16['signD'] < 0) )| ( (df_Zha16['L_alg'] == 1) & (df_Zha16['signD'] > 0) )]
+    df_Zha16['L_alg_ord_2'] = (df_Zha16['special_value'] * df_Zha16['real_components']/(df_Zha16['real_period']))
+    df_Zha16['L_alg_ord_2'] = df_Zha16['L_alg_ord_2'].apply(lambda x: QQ(RR(x)).valuation(2))
+    
+    # part 1: no 2 torsion & ( CONDITION on L_alg based on signD )
+    df_Zha16_no_2_tors = df_Zha16[~df_Zha16['torsion_primes'].apply(lambda x: 2 in x)]   
+    # print((df_Zha16_no_2_tors['L_alg_ord_2'] == 1) & (df_Zha16_no_2_tors['signD'] > 0))
+    # print((df_Zha16_no_2_tors['L_alg_ord_2'] == 0) & (df_Zha16_no_2_tors['signD'] < 0))
+    # print(df_Zha16_no_2_tors[(df_Zha16_no_2_tors['L_alg_ord_2'] == 1) & (df_Zha16_no_2_tors['signD'] > 0)])
+    # print(df_Zha16_no_2_tors[(df_Zha16_no_2_tors['L_alg_ord_2'] == 0) & (df_Zha16_no_2_tors['signD'] < 0)])
+    df_Zha16_no_2_tors = df_Zha16_no_2_tors.loc[( (df_Zha16_no_2_tors['L_alg_ord_2'] == 0) & (df_Zha16_no_2_tors['signD'] < 0) )| ( (df_Zha16_no_2_tors['L_alg_ord_2'] == 1) & (df_Zha16_no_2_tors['signD'] > 0) )]
+
+
+    # part 2: 2 torsion & ( val_2(L_alg) = -2 * 2_torsion_order ... )
+    # val_2(L_alg) = -2 * val_2(2_torsion_order) criterion is to ensure that val_2(L_alg(E_M) = 0 theorem in 
+    df_Zha16_2_tors = df_Zha16[df_Zha16['torsion_primes'].apply(lambda x: 2 in x)]
+    df_Zha16_2_tors['L_alg_ord_2'] = df_Zha16_2_tors['L_alg_ord_2'] * df_Zha16_2_tors['real_components']
+    df_Zha16_2_tors['2_torsion_ord_2'] = df_Zha16_2_tors[['torsion_structure', 'torsion']].apply(lambda x: ord_2_two_torsion_order(x[0], x[1]), axis=1)
+    df_Zha16_2_tors = df_Zha16_2_tors.loc[df_Zha16_2_tors['L_alg_ord_2'] == -2 * df_Zha16_2_tors['2_torsion_ord_2']]
+
+    # combine the two
+    df_Zha16 = pd.concat([df_Zha16_no_2_tors, df_Zha16_2_tors])
+    df_Zha16 = df_Zha16.sort_values(by='conductor')
 
     # give the source of the data
     df_Zha16['source'] = 'Zha16'
