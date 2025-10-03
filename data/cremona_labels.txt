@@ -1,4 +1,4 @@
-Generated at 08:25 (eastern) on Friday 03 October 2025
+Generated at 09:22 (eastern) on Friday 03 October 2025
 Params: cond_upper_bound=150, cond_lower_bound=None
 Run took: 0 minutes 3 seconds
 
@@ -29,10 +29,8 @@ Run took: 0 minutes 3 seconds
 130c1, Zha16_2_tors
 138c1, Zha16_2_tors
 141c1, Zha16_2_tors
-57a1, Zha16_no_2_tors
 106d1, Zha16_no_2_tors
 115a1, Zha16_no_2_tors
 118d1, Zha16_no_2_tors
 118c1, Zha16_no_2_tors
-141d1, Zha16_no_2_tors
 141e1, Zha16_no_2_tors

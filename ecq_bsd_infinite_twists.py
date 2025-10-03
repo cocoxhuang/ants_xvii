@@ -254,6 +254,7 @@ def foo(cond_upper_bound=None, cond_lower_bound=None):
     df_Zha16['real_components'] = df_Zha16['ainvs'].apply(lambda x: EllipticCurve(x).real_components())  
     df_Zha16['L_alg'] = (df_Zha16['special_value'] * df_Zha16['real_components']/(df_Zha16['real_period']))
     df_Zha16['L_alg_ord_2'] = df_Zha16['L_alg'].apply(lambda x: QQ(RR(x)).valuation(2))
+    df_Zha16 = df_Zha16[df_Zha16['rank'] == 0]      # rank = 0
     
     # part 1: NO 2 torsion & ( CONDITION on L_alg based on signD )
     df_Zha16_no_2_tors = df_Zha16[~df_Zha16['torsion_primes'].apply(lambda x: 2 in x)]   
@@ -264,7 +265,6 @@ def foo(cond_upper_bound=None, cond_lower_bound=None):
     # part 2: 2 torsion & ( CONDITION on L_alg based on signD )
     df_Zha16_2_tors = df_Zha16[df_Zha16['torsion_primes'].apply(lambda x: 2 in x)]
     
-    df_Zha16_2_tors = df_Zha16_2_tors[df_Zha16_2_tors['rank'] == 0]      # rank = 0
     # df_Zha16_2_tors = df_Zha16_2_tors[df_Zha16_2_tors['sha'] % 2 != 0]   # speculated criterion: sha is odd -> Sel_2(E) = 1
 
     # L value conditions
