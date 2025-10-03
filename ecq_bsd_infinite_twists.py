@@ -246,7 +246,7 @@ def foo(cond_upper_bound=None, cond_lower_bound=None):
     df_CLZ20['source'] = 'CLZ20'
 
     # --------------
-    # using criteria from [Zha16, Theorem 1.1 - 1.4]
+    # using criteria from [Zha16, Theorem 1.1 - 1.9]
     # --------------
     # CONDITION 1g: 
     df_Zha16 = df
@@ -255,27 +255,25 @@ def foo(cond_upper_bound=None, cond_lower_bound=None):
     df_Zha16['L_alg'] = (df_Zha16['special_value'] * df_Zha16['real_components']/(df_Zha16['real_period']))
     df_Zha16['L_alg_ord_2'] = df_Zha16['L_alg'].apply(lambda x: QQ(RR(x)).valuation(2))
     
-    # part 1: no 2 torsion & ( CONDITION on L_alg based on signD )
+    # part 1: NO 2 torsion & ( CONDITION on L_alg based on signD )
     df_Zha16_no_2_tors = df_Zha16[~df_Zha16['torsion_primes'].apply(lambda x: 2 in x)]   
     df_Zha16_no_2_tors = df_Zha16_no_2_tors.loc[( (df_Zha16_no_2_tors['L_alg_ord_2'] == 0) & (df_Zha16_no_2_tors['signD'] < 0) )| ( (df_Zha16_no_2_tors['L_alg_ord_2'] == 1) & (df_Zha16_no_2_tors['signD'] > 0) )]
 
-    # part 2: 2 torsion & L value conditions
+    df_Zha16_no_2_tors['source'] = 'Zha16_no_2_tors' # watermark
+
+    # part 2: 2 torsion & ( CONDITION on L_alg based on signD )
     df_Zha16_2_tors = df_Zha16[df_Zha16['torsion_primes'].apply(lambda x: 2 in x)]
     
     df_Zha16_2_tors = df_Zha16_2_tors[df_Zha16_2_tors['rank'] == 0]      # rank = 0
-    # df_Zha16_2_tors = df_Zha16_2_tors[df_Zha16_2_tors['sha'] % 2 != 0]   # sha is odd -> Sel_2(E) = 1
+    # df_Zha16_2_tors = df_Zha16_2_tors[df_Zha16_2_tors['sha'] % 2 != 0]   # speculated criterion: sha is odd -> Sel_2(E) = 1
 
     # L value conditions
     df_Zha16_2_tors = df_Zha16_2_tors.loc[( (df_Zha16_2_tors['L_alg_ord_2'] != 0) & (df_Zha16_2_tors['signD'] < 0) )| ( (df_Zha16_2_tors['L_alg_ord_2'] != 1) & (df_Zha16_2_tors['signD'] > 0) )]
-    
-    # speculations
-    df_Zha16_2_tors = df_Zha16_2_tors[df_Zha16_2_tors['torsion'] > 2] 
+
+    df_Zha16_2_tors['source'] = 'Zha16_2_tors' # watermark
 
     # combine the two
     df_Zha16 = pd.concat([df_Zha16_no_2_tors, df_Zha16_2_tors])
-
-    # give the source of the data
-    df_Zha16['source'] = 'Zha16'
     # --------------
 
     # combine the results from CLZ20 and Zha16

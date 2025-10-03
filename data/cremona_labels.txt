@@ -1,4 +1,4 @@
-Generated at 12:19 (eastern) on Thursday 02 October 2025
+Generated at 08:25 (eastern) on Friday 03 October 2025
 Params: cond_upper_bound=150, cond_lower_bound=None
 Run took: 0 minutes 3 seconds
 
@@ -10,26 +10,29 @@ Run took: 0 minutes 3 seconds
 114b1, CLZ20
 141b1, CLZ20
 142c1, CLZ20
-15a1, Zha16
-21a1, Zha16
-33a1, Zha16
-39a1, Zha16
-42a1, Zha16
-55a1, Zha16
-57a1, Zha16
-57b1, Zha16
-62a1, Zha16
-66b1, Zha16
-70a1, Zha16
-102b1, Zha16
-106d1, Zha16
-114c1, Zha16
-115a1, Zha16
-118d1, Zha16
-118c1, Zha16
-129b1, Zha16
-130b1, Zha16
-138c1, Zha16
-141d1, Zha16
-141e1, Zha16
-141c1, Zha16
+15a1, Zha16_2_tors
+21a1, Zha16_2_tors
+33a1, Zha16_2_tors
+39a1, Zha16_2_tors
+42a1, Zha16_2_tors
+55a1, Zha16_2_tors
+57b1, Zha16_2_tors
+62a1, Zha16_2_tors
+66b1, Zha16_2_tors
+70a1, Zha16_2_tors
+78a1, Zha16_2_tors
+102b1, Zha16_2_tors
+105a1, Zha16_2_tors
+114c1, Zha16_2_tors
+129b1, Zha16_2_tors
+130b1, Zha16_2_tors
+130c1, Zha16_2_tors
+138c1, Zha16_2_tors
+141c1, Zha16_2_tors
+57a1, Zha16_no_2_tors
+106d1, Zha16_no_2_tors
+115a1, Zha16_no_2_tors
+118d1, Zha16_no_2_tors
+118c1, Zha16_no_2_tors
+141d1, Zha16_no_2_tors
+141e1, Zha16_no_2_tors
