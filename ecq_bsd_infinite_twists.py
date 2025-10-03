@@ -29,7 +29,6 @@ ec_mwbsd = db.ec_mwbsd
 # Run a search query to get only the rank 0 or 1 curves.
 # For now we set a limit to make things faster
 
-NUM_AP_VALS = 100  # Number of primes to use for the a_p values
 ECQ_COLS = ['ainvs', 'lmfdb_label', 'conductor', 'rank', 'torsion', 'absD', 'bad_primes', 'manin_constant', 
 'regulator', 'sha', 'lmfdb_iso', 'torsion_structure', 'torsion_primes', 'signD']
 CLASSDATA_COLS = ['lmfdb_iso', 'aplist']
@@ -158,14 +157,21 @@ def filter_CONDITIONs_i(df):
                 E_prime_sha_order = ecq.lucky({'ainvs':[int(x) for x in E_prime.ainvs()]}, projection='sha')
             except:
                 import pdb; pdb.set_trace()
+        '''
+        revision: now require E_prime[2] is also Z/2
         if E_prime_sha_order == 1:
             data_idx.append(index)
+        '''
+        if E_prime_sha_order == 1:
+            # extra requirement of E'(Q)[2] being isomorphic to Z/2Z
+            n_gen = E_prime.torsion_subgroup().ngens()
+            E_prime_tors_order = E_prime.torsion_order()
+            if n_gen == 1 and E_prime_tors_order % 2 == 0:
+                data_idx.append(index)
     return df.loc[data_idx]
 
 def ord_2_two_torsion_order(torsion_structure, torsion):
-    '''
-    returns ord_2( the order of the 2-torsion subgroup)
-    '''
+    '''returns ord_2( the order of the 2-torsion subgroup)'''
     if len(torsion_structure) == 1:
         two_torsion_val_2 = min(ZZ(torsion).valuation(2), 1)
     else:
@@ -174,19 +180,18 @@ def ord_2_two_torsion_order(torsion_structure, torsion):
 
 def foo(cond_upper_bound=None, cond_lower_bound=None):
 
-    # get ready to work
     start_time = time.time()
     run_summary = f"Params: cond_upper_bound={cond_upper_bound}, cond_lower_bound={cond_lower_bound}"
-    print(run_summary)
     lmfdb_file = LMFDB_FILE  # .format(NUM_AP_VALS, 1, MY_LOCAL_LIM-1)
     cremona_file = CREMONA_FILE
     
-    #----------------------
-    # Common criteria from [CLZ20, Theorem 1.5] and [Zha16, Theorem 1.1 - 1.4]
-    # [CLZ20] : L. Cai, C. Li and S. Zhai, On the 2-part of the Birch and Swinnerton-Dyer conjecture for quadratic twists of elliptic
-    # curves, J. Lond. Math. Soc. (2) 101 (2020), no. 2, 714–734.
-    # [Zha16] :  S. Zhai, Non-vanishing theorems for quadratic twists of elliptic curves, Asian J. Math. 20 (2016), no. 3, 475–502
-    #----------------------
+    '''
+    2-part of the BSD verification references
+        [CLZ20] : L. Cai, C. Li and S. Zhai, On the 2-part of the Birch and Swinnerton-Dyer conjecture for quadratic twists of elliptic
+    curves, J. Lond. Math. Soc. (2) 101 (2020), no. 2, 714–734.
+        [Zha16] :  S. Zhai, Non-vanishing theorems for quadratic twists of elliptic curves, Asian J. Math. 20 (2016), no. 3, 475–502
+    '''
+
     # get curve data from the LMFDB
     # checking CONDITIONs 1a, 1d, 1e, 1f
     ecq_query = {
@@ -203,7 +208,6 @@ def foo(cond_upper_bound=None, cond_lower_bound=None):
     else:
         if cond_lower_bound is not None:
             ecq_query['conductor'] = {'$gte' : cond_lower_bound}
-    print(f"ecq_query={ecq_query}")
     ecq_payload = ecq.search(ecq_query, projection=ECQ_COLS)
     df = pd.DataFrame(list(ecq_payload))
     assert df['lmfdb_iso'].nunique() == len(df), "Values in the 'lmfdb_iso' column are not unique!"
@@ -217,9 +221,10 @@ def foo(cond_upper_bound=None, cond_lower_bound=None):
     # CONDITION 1d: ramification CONDITION at bad primes
     df = filter_CONDITIONs_c_d(df)
 
-    #----------------------
-    # check the residual criteria from [CLZ20, Theorem 1.5]
-    #----------------------
+    # checking the 2-part of BSD
+    # --------------
+    # using criteria from [CLZ20, Theorem 1.5]
+
     # CONDITION 1g: E(Q)[2] = Z/2Z
     df_CLZ20 = filter_CONDITIONs_g(df)
     
@@ -228,64 +233,65 @@ def foo(cond_upper_bound=None, cond_lower_bound=None):
     df_CLZ20['L_alg'] = (df_CLZ20['special_value']/(df_CLZ20['real_period'] * df_CLZ20['regulator']))
     df_CLZ20['L_alg'] = df_CLZ20['L_alg'].apply(lambda x: QQ(RR(x)).valuation(2))    # now L_alg is 2-valuation of the quantity
     df_CLZ20 = df_CLZ20[df_CLZ20['L_alg'] == -1]  
-    # df['my_CONDITION_1h_quantity'] = (df['tamagawa_product'] * df['sha'].round()) / (df['torsion']**2)
-    # df['my_CONDITION_1h_quantity'] = df['my_CONDITION_1h_quantity'].apply(lambda x : QQ(x).valuation(2))
-    # df['CONDITION_1h_quantity'] = (df['special_value']/(df['real_period'] * df['regulator']))
-    # df['CONDITION_1h_quantity'] = df['CONDITION_1h_quantity'].apply(lambda x: QQ(RR(x)).valuation(2))
-    # assert df['my_CONDITION_1h_quantity'].equals(df['CONDITION_1h_quantity']), \
-    # "The values in 'my_CONDITION_1h_quantity' and 'CONDITION_1h_quantity' are not identical!"
 
     # condtion 1i: sha(E') = 1
     df_CLZ20 = filter_CONDITIONs_i(df_CLZ20)
 
-    # give the source of the data
+    '''
+    revision:
+        extra conditions for CLZ20: rank = 0
+    '''
+    df_CLZ20 = df_CLZ20[df_CLZ20['rank'] == 0]
+
     df_CLZ20['source'] = 'CLZ20'
-    #----------------------
-    # check the residual criteria from [Zha16, Theorem 1.1 - 1.4]
-    #----------------------
+
+    # --------------
+    # using criteria from [Zha16, Theorem 1.1 - 1.4]
+    # --------------
     # CONDITION 1g: 
     df_Zha16 = df
     df_Zha16 = merge_mwbsd(df_Zha16)
     df_Zha16['real_components'] = df_Zha16['ainvs'].apply(lambda x: EllipticCurve(x).real_components())  
-    df_Zha16['L_alg_ord_2'] = (df_Zha16['special_value'] * df_Zha16['real_components']/(df_Zha16['real_period']))
-    df_Zha16['L_alg_ord_2'] = df_Zha16['L_alg_ord_2'].apply(lambda x: QQ(RR(x)).valuation(2))
+    df_Zha16['L_alg'] = (df_Zha16['special_value'] * df_Zha16['real_components']/(df_Zha16['real_period']))
+    df_Zha16['L_alg_ord_2'] = df_Zha16['L_alg'].apply(lambda x: QQ(RR(x)).valuation(2))
     
     # part 1: no 2 torsion & ( CONDITION on L_alg based on signD )
     df_Zha16_no_2_tors = df_Zha16[~df_Zha16['torsion_primes'].apply(lambda x: 2 in x)]   
-    # print((df_Zha16_no_2_tors['L_alg_ord_2'] == 1) & (df_Zha16_no_2_tors['signD'] > 0))
-    # print((df_Zha16_no_2_tors['L_alg_ord_2'] == 0) & (df_Zha16_no_2_tors['signD'] < 0))
-    # print(df_Zha16_no_2_tors[(df_Zha16_no_2_tors['L_alg_ord_2'] == 1) & (df_Zha16_no_2_tors['signD'] > 0)])
-    # print(df_Zha16_no_2_tors[(df_Zha16_no_2_tors['L_alg_ord_2'] == 0) & (df_Zha16_no_2_tors['signD'] < 0)])
     df_Zha16_no_2_tors = df_Zha16_no_2_tors.loc[( (df_Zha16_no_2_tors['L_alg_ord_2'] == 0) & (df_Zha16_no_2_tors['signD'] < 0) )| ( (df_Zha16_no_2_tors['L_alg_ord_2'] == 1) & (df_Zha16_no_2_tors['signD'] > 0) )]
 
-
-    # part 2: 2 torsion & ( val_2(L_alg) = -2 * 2_torsion_order ... )
-    # val_2(L_alg) = -2 * val_2(2_torsion_order) criterion is to ensure that val_2(L_alg(E_M) = 0 theorem in 
+    # part 2: 2 torsion & L value conditions
     df_Zha16_2_tors = df_Zha16[df_Zha16['torsion_primes'].apply(lambda x: 2 in x)]
-    df_Zha16_2_tors['L_alg_ord_2'] = df_Zha16_2_tors['L_alg_ord_2'] * df_Zha16_2_tors['real_components']
-    df_Zha16_2_tors['2_torsion_ord_2'] = df_Zha16_2_tors[['torsion_structure', 'torsion']].apply(lambda x: ord_2_two_torsion_order(x[0], x[1]), axis=1)
-    df_Zha16_2_tors = df_Zha16_2_tors.loc[df_Zha16_2_tors['L_alg_ord_2'] == -2 * df_Zha16_2_tors['2_torsion_ord_2']]
+    
+    df_Zha16_2_tors = df_Zha16_2_tors[df_Zha16_2_tors['rank'] == 0]      # rank = 0
+    # df_Zha16_2_tors = df_Zha16_2_tors[df_Zha16_2_tors['sha'] % 2 != 0]   # sha is odd -> Sel_2(E) = 1
+
+    # L value conditions
+    df_Zha16_2_tors = df_Zha16_2_tors.loc[( (df_Zha16_2_tors['L_alg_ord_2'] != 0) & (df_Zha16_2_tors['signD'] < 0) )| ( (df_Zha16_2_tors['L_alg_ord_2'] != 1) & (df_Zha16_2_tors['signD'] > 0) )]
+    
+    # speculations
+    df_Zha16_2_tors = df_Zha16_2_tors[df_Zha16_2_tors['torsion'] > 2] 
 
     # combine the two
     df_Zha16 = pd.concat([df_Zha16_no_2_tors, df_Zha16_2_tors])
-    df_Zha16 = df_Zha16.sort_values(by='conductor')
 
     # give the source of the data
     df_Zha16['source'] = 'Zha16'
-    # -----------------------
-    # save eligible curves results to text files
-    # -----------------------
+    # --------------
+
     # combine the results from CLZ20 and Zha16
-    df = pd.concat([df_CLZ20, df_Zha16])
+    df = pd.concat([df_CLZ20, df_Zha16]).sort_values(by=['source','conductor']).reset_index(drop=True)
+    df = df[['source','conductor','lmfdb_label']].drop_duplicates(subset=['lmfdb_label'])
     labels = df['lmfdb_label'].tolist()
     sources = df['source'].tolist()
     res = dict(zip(labels, sources))
+
     # calculate the run time
     current_time = get_current_time_str()
     end_time = time.time()
     elapsed_time = end_time - start_time
     minutes = int(elapsed_time // 60)
     seconds = int(elapsed_time % 60)
+
     # save lmfdb labels
     with open(lmfdb_file, 'w') as f:
         # Write the timestamp at the top of the file
@@ -294,6 +300,7 @@ def foo(cond_upper_bound=None, cond_lower_bound=None):
         f.write(f"Run took: {minutes} minutes {seconds} seconds\n\n")
         for label, source in res.items():
             f.write(f"{label}, {source}\n")
+
     # save cremona labels
     final_cremona_labels = []
     for label in labels:
@@ -310,4 +317,3 @@ def foo(cond_upper_bound=None, cond_lower_bound=None):
     print(f"SUCCESS!!! Data files saved to {lmfdb_file} and {cremona_file}.")
 
 foo(cond_upper_bound=150)
-
