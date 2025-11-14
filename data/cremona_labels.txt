@@ -1,36 +1,36 @@
-Generated at 09:22 (eastern) on Friday 03 October 2025
+Generated at 03:43 (eastern) on Friday 14 November 2025
 Params: cond_upper_bound=150, cond_lower_bound=None
-Run took: 0 minutes 3 seconds
+Run took: 0 minutes 2 seconds
 
-46a1, CLZ20
-69a1, CLZ20
-77c1, CLZ20
-85a1, CLZ20
-94a1, CLZ20
-114b1, CLZ20
-141b1, CLZ20
-142c1, CLZ20
-15a1, Zha16_2_tors
-21a1, Zha16_2_tors
-33a1, Zha16_2_tors
-39a1, Zha16_2_tors
-42a1, Zha16_2_tors
-55a1, Zha16_2_tors
-57b1, Zha16_2_tors
-62a1, Zha16_2_tors
-66b1, Zha16_2_tors
-70a1, Zha16_2_tors
-78a1, Zha16_2_tors
-102b1, Zha16_2_tors
-105a1, Zha16_2_tors
-114c1, Zha16_2_tors
-129b1, Zha16_2_tors
-130b1, Zha16_2_tors
-130c1, Zha16_2_tors
-138c1, Zha16_2_tors
-141c1, Zha16_2_tors
-106d1, Zha16_no_2_tors
-115a1, Zha16_no_2_tors
-118d1, Zha16_no_2_tors
-118c1, Zha16_no_2_tors
-141e1, Zha16_no_2_tors
+46a1, CLZ20, 1,41,73,193
+69a1, CLZ20, 1,73,193
+77c1, CLZ20, 1,113,137
+85a1, CLZ20, 1,89
+94a1, CLZ20, 1,17,89,97
+114b1, CLZ20, 1,73
+141b1, CLZ20, 1,97
+142c1, CLZ20, 1,73,89,145,185
+15a1, Zha16_2_tors, 0
+21a1, Zha16_2_tors, 0
+33a1, Zha16_2_tors, 0
+39a1, Zha16_2_tors, 0
+42a1, Zha16_2_tors, 0
+55a1, Zha16_2_tors, 0
+57b1, Zha16_2_tors, 0
+62a1, Zha16_2_tors, 0
+66b1, Zha16_2_tors, 0
+70a1, Zha16_2_tors, 0
+78a1, Zha16_2_tors, 0
+102b1, Zha16_2_tors, 0
+105a1, Zha16_2_tors, 0
+114c1, Zha16_2_tors, 0
+129b1, Zha16_2_tors, 0
+130b1, Zha16_2_tors, 0
+130c1, Zha16_2_tors, 0
+138c1, Zha16_2_tors, 0
+141c1, Zha16_2_tors, 0
+106d1, Zha16_no_2_tors, 0
+115a1, Zha16_no_2_tors, 0
+118d1, Zha16_no_2_tors, 0
+118c1, Zha16_no_2_tors, 0
+141e1, Zha16_no_2_tors, 0

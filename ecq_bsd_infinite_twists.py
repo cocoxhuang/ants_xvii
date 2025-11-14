@@ -14,7 +14,8 @@ from lmfdb import db
 import pandas as pd
 import numpy as np
 import pytz
-from sage.all import EllipticCurve, primes_first_n, round, Integer, QQ, RR, ZZ
+from sage.all import (EllipticCurve, primes_first_n, round, Integer, QQ, RR, 
+                    ZZ, prime_range, fundamental_discriminant, gcd, kronecker_symbol)  
 import time
 from datetime import datetime
 
@@ -197,7 +198,7 @@ def get_good_twists(ainvs, conductor, source, B=TWIST_BOUND):
         # We first need to precompute trace of Frobenius values for efficiency
 
         E = EllipticCurve(ainvs)
-        conductor_primes = conductor.prime_divisors()
+        conductor_primes = ZZ(conductor).prime_divisors()
         a_p_dict = {}
         for p in prime_range(B):
             a_p = E.ap(p)
