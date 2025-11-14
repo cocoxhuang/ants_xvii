@@ -350,6 +350,7 @@ def foo(cond_upper_bound=None, cond_lower_bound=None):
         f.write(f"{current_time}\n")
         f.write(f"{run_summary}\n")
         f.write(f"Run took: {minutes} minutes {seconds} seconds\n\n")
+        f.write("label,source,good_twists\n")
         for label, source, twist in res:
             f.write(f"{label}, {source}, {twist}\n")
 
@@ -364,6 +365,7 @@ def foo(cond_upper_bound=None, cond_lower_bound=None):
         f.write(f"{current_time}\n")
         f.write(f"{run_summary}\n")
         f.write(f"Run took: {minutes} minutes {seconds} seconds\n\n")
+        f.write("label,source,good_twists\n")
         for label, source, twist in cremona_res:
             f.write(f"{label}, {source}, {twist}\n")
     print(f"SUCCESS!!! Data files saved to {lmfdb_file} and {cremona_file}.")
