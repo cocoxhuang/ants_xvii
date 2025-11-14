@@ -193,7 +193,38 @@ def get_good_twists(ainvs, conductor, source, B=TWIST_BOUND):
     - String representation of good twists (empty string for now)
     '''
 
-    return ''  # For now we only return the empty string
+    if source == 'CLZ20':
+        # We first need to precompute trace of Frobenius values for efficiency
+
+        E = EllipticCurve(ainvs)
+        conductor_primes = conductor.prime_divisors()
+        a_p_dict = {}
+        for p in prime_range(B):
+            a_p = E.ap(p)
+            a_p_dict[p] = a_p
+
+        good_twists = []
+
+        for M in range(-B, B + 1):
+            if ZZ(M).is_squarefree() and M != 0:  # Condition a
+                if gcd(M, conductor) == 1: # Condition b
+                    primes_to_check = ZZ(M).prime_divisors()
+                    condition_b = all(a_p_dict[p] % p != 0 for p in primes_to_check)
+                    if condition_b:
+                        condition_c = all(((p % 4 == 1) and (a_p_dict[p].valuation(2) == 1)) for p in primes_to_check)
+                        if condition_c:
+                            # Condition d
+                            if M % 8 == 1:
+                                if all(kronecker_symbol(fundamental_discriminant(M),p) == 1 for p in conductor_primes if p != 2):
+                                    good_twists.append(M)
+        if good_twists:
+            return ','.join(str(t) for t in good_twists)
+        else:
+            return '0'
+    else:
+        # For Zha16 cases, we currently return an empty string
+        # TODO: Implement the actual logic for finding good twists based on the source
+        return '0'
 
 def foo(cond_upper_bound=None, cond_lower_bound=None):
 
