@@ -20,6 +20,7 @@ from datetime import datetime
 
 LMFDB_FILE = 'data/lmfdb_labels.txt'
 CREMONA_FILE = 'data/cremona_labels.txt'
+TWIST_BOUND = 200
 
 # Load the elliptic curve table from the LMFDB
 ecq = db.ec_curvedata
@@ -178,6 +179,22 @@ def ord_2_two_torsion_order(torsion_structure, torsion):
         two_torsion_val_2 = ZZ(torsion_structure[0]).valuation(2) + ZZ(torsion_structure[1]).valuation(2)
     return two_torsion_val_2
 
+def get_good_twists(ainvs, conductor, source, B=TWIST_BOUND):
+    '''
+    Find good twists for the given elliptic curve.
+
+    Parameters:
+    - ainvs: a-invariants of the elliptic curve
+    - conductor: conductor of the curve
+    - source: source classification (CLZ20, Zha16_2_tors, or Zha16_no_2_tors)
+    - B: bound for twist search (default: TWIST_BOUND)
+
+    Returns:
+    - String representation of good twists (empty string for now)
+    '''
+
+    return ''  # For now we only return the empty string
+
 def foo(cond_upper_bound=None, cond_lower_bound=None):
 
     start_time = time.time()
@@ -278,10 +295,15 @@ def foo(cond_upper_bound=None, cond_lower_bound=None):
 
     # combine the results from CLZ20 and Zha16
     df = pd.concat([df_CLZ20, df_Zha16]).sort_values(by=['source','conductor']).reset_index(drop=True)
-    df = df[['source','conductor','lmfdb_label']].drop_duplicates(subset=['lmfdb_label'])
+
+    # Apply get_good_twists function to add the good_twists column
+    df['good_twists'] = df.apply(lambda row: get_good_twists(row['ainvs'], row['conductor'], row['source']), axis=1)
+
+    df = df[['source','conductor','lmfdb_label','good_twists']].drop_duplicates(subset=['lmfdb_label'])
     labels = df['lmfdb_label'].tolist()
     sources = df['source'].tolist()
-    res = dict(zip(labels, sources))
+    good_twists = df['good_twists'].tolist()
+    res = list(zip(labels, sources, good_twists))
 
     # calculate the run time
     current_time = get_current_time_str()
@@ -296,22 +318,22 @@ def foo(cond_upper_bound=None, cond_lower_bound=None):
         f.write(f"{current_time}\n")
         f.write(f"{run_summary}\n")
         f.write(f"Run took: {minutes} minutes {seconds} seconds\n\n")
-        for label, source in res.items():
-            f.write(f"{label}, {source}\n")
+        for label, source, twist in res:
+            f.write(f"{label}, {source}, {twist}\n")
 
     # save cremona labels
     final_cremona_labels = []
     for label in labels:
         c_label = ecq.lookup(label, projection='Clabel')
         final_cremona_labels.append(c_label)
-    cremona_res = dict(zip(final_cremona_labels, sources))
+    cremona_res = list(zip(final_cremona_labels, sources, good_twists))
     with open(cremona_file, 'w') as f:
         # Write the timestamp at the top of the file
         f.write(f"{current_time}\n")
         f.write(f"{run_summary}\n")
         f.write(f"Run took: {minutes} minutes {seconds} seconds\n\n")
-        for label, source in cremona_res.items():
-            f.write(f"{label}, {source}\n")
+        for label, source, twist in cremona_res:
+            f.write(f"{label}, {source}, {twist}\n")
     print(f"SUCCESS!!! Data files saved to {lmfdb_file} and {cremona_file}.")
 
 foo(cond_upper_bound=150)
