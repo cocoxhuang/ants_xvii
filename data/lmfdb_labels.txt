@@ -1,7 +1,8 @@
-Generated at 03:43 (eastern) on Friday 14 November 2025
+Generated at 03:53 (eastern) on Friday 14 November 2025
 Params: cond_upper_bound=150, cond_lower_bound=None
 Run took: 0 minutes 2 seconds
 
+label,source,good_twists
 46.a2, CLZ20, 1,41,73,193
 69.a2, CLZ20, 1,73,193
 77.c2, CLZ20, 1,113,137
