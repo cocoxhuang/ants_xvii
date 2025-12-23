@@ -19,23 +19,16 @@ from sage.all import (EllipticCurve, primes_first_n, round, Integer, QQ, RR,
 import time
 from datetime import datetime
 
-LMFDB_FILE = 'data/lmfdb_labels.txt'
-CREMONA_FILE = 'data/cremona_labels.txt'
-TWIST_BOUND = 200
-
 # Load the elliptic curve table from the LMFDB
 ecq = db.ec_curvedata
 ec_classdata = db.ec_classdata
 ec_mwbsd = db.ec_mwbsd
 
-# Run a search query to get only the rank 0 or 1 curves.
-# For now we set a limit to make things faster
-
+# Information columns from lmfdb
 ECQ_COLS = ['ainvs', 'lmfdb_label', 'conductor', 'rank', 'torsion', 'absD', 'bad_primes', 'manin_constant', 
 'regulator', 'sha', 'lmfdb_iso', 'torsion_structure', 'torsion_primes', 'signD']
 CLASSDATA_COLS = ['lmfdb_iso', 'aplist']
 MWBSD_COLS = ['lmfdb_label', 'tamagawa_product'] + ['real_period', 'special_value']
-
 
 def get_current_time_str():
     # Get the current time in UTC
@@ -48,21 +41,20 @@ def get_current_time_str():
     # Format the time in a human-readable format
     return eastern_now.strftime("Generated at %H:%M (eastern) on %A %d %B %Y")
 
-
-def is_ramified(bad_primes, minimal_disc):
+def is_ramified(bad_primes: list[int], minimal_disc: Integer) -> bool:
+    '''returns True if the curve is ramified at any bad primes'''
     return all(
         any(minimal_disc.valuation(p) % ell != 0 for p in bad_primes if p != ell)
         for ell in bad_primes
     )
 
-def ordinary_357(a_ps):
-    '''
-    returns the ordinary primes among 3,5,7
-    '''
+def ordinary_357(a_ps: list[int]) -> list[int]:
+    '''returns the ordinary primes among 3,5,7 for a given elliptic curve'''
     primes = [3,5,7]
     return [primes[i] for i in range(len(primes)) if a_ps[i] % primes[i] != 0]
 
-def get_a3_a5_a7(df):
+def get_a3_a5_a7(df: pd.DataFrame) -> pd.DataFrame:
+    '''returns a dataframe with a3,a5,a7 columns merged from classdata'''
     classdata_query = {'lmfdb_iso': {'$in': df['lmfdb_iso'].tolist()}}
     classdata_payload = ec_classdata.search(classdata_query, projection=CLASSDATA_COLS)
     classdata_df = pd.DataFrame(list(classdata_payload))
@@ -72,23 +64,23 @@ def get_a3_a5_a7(df):
     classdata_df.drop(columns=['aplist'], inplace=True)
     return classdata_df
 
-def merge_mwbsd(df):
+def merge_mwbsd(df: pd.DataFrame) -> pd.DataFrame:
+    '''merges mwbsd data into the given dataframe'''
     mwbsd_query = {'lmfdb_label': {'$in': df['lmfdb_label'].tolist()}}
     mwbsd_payload = ec_mwbsd.search(mwbsd_query, projection=MWBSD_COLS)
     mwbsd_df = pd.DataFrame(list(mwbsd_payload))
     df = pd.merge(df, mwbsd_df, on='lmfdb_label', how='inner')
     return df
 
-# Function to get the data and labels
-def filter_CONDITIONs_c_d(df):
+def filter_CONDITION_p_isogeny(df: pd.DataFrame) -> pd.DataFrame:
+    '''CONDITION: no rational odd prime isogenies'''
     data_idx = []
     for index,curve in df.iterrows():
         ainvs = curve['ainvs']
-        minimal_disc = Integer(curve['absD'])
         bad_primes = curve['bad_primes']
 
-        # CONDITION 1c: irreducibility CONDITION at certain odd primes
-        CONDITION_1c = True
+        # CONDITION: irreducibility CONDITION at certain odd primes
+        CONDITION = True
         a_3, a_5, a_7 = curve['a3'], curve['a5'], curve['a7']
         if 2 in bad_primes:
             non_isogeny_primes = bad_primes.copy()
@@ -100,20 +92,29 @@ def filter_CONDITIONs_c_d(df):
     
         E = EllipticCurve(ainvs)
         isogeny_primes = [phi.degree() for phi in E.isogenies_prime_degree()]
-        CONDITION_1c = (all(p not in isogeny_primes for p in non_isogeny_primes))
+        CONDITION = (all(p not in isogeny_primes for p in non_isogeny_primes))
 
-        # condititon 1d: ramification CONDITION at bad primes
-        CONDITION_1d = is_ramified(bad_primes, minimal_disc)
-
-        CONDITIONs = [CONDITION_1c, CONDITION_1d]
-
-        if all(CONDITIONs):
+        if CONDITION:
             data_idx.append(index)
 
     return df.loc[data_idx]
 
-# CONDITION 1g: E(Q)[2] = Z/2Z
-def filter_CONDITIONs_g(df):
+def filter_CONDITION_ramification(df: pd.DataFrame) -> pd.DataFrame:
+    '''CONDITION: ramification at any bad primes'''
+    data_idx = []
+    for index,curve in df.iterrows():
+        ainvs = curve['ainvs']
+        minimal_disc = Integer(curve['absD'])
+        bad_primes = curve['bad_primes']
+
+        CONDITION = is_ramified(bad_primes, minimal_disc)
+
+        if CONDITION:
+            data_idx.append(index)
+    return df.loc[data_idx]
+
+def filter_CONDITION_2_torsion(df: pd.DataFrame) -> pd.DataFrame:
+    '''filters dataframe for CONDITION: E(Q)[2] = Z/2Z'''
     allowed_torsion_structures = [[2], [4], [6], [8], [10], [12]]
     df = df[df['torsion_structure'].isin(allowed_torsion_structures)] 
     data_idx = []
@@ -125,11 +126,13 @@ def filter_CONDITIONs_g(df):
             data_idx.append(index)
     return df.loc[data_idx]
 
-def filter_CONDITIONs_i(df):
+def filter_CONDITION_E_prime(df: pd.DataFrame) -> pd.DataFrame:
+    '''CONDITION: sha(E')[2] = 1 and E'(Q)[2] = Z/2Z, where E' is the 2-isogenous curve of E'''
     data_idx = []
     for index,curve in df.iterrows():
         ainvs = curve['ainvs']
         E = EllipticCurve(ainvs)
+
         # find the generator of the 2-torsion subgroup
         E_torsion_gens = E.torsion_subgroup().gens()
         assert len(E_torsion_gens) == 1
@@ -147,7 +150,8 @@ def filter_CONDITIONs_i(df):
         else:
             raise ValueError("Unexpected torsion order")
         assert E_two_torsion_gen.order() == 2   
-        # construct E' and retrieve the order of sha(E')
+        
+        # Get sha(E')
         C = E(E_two_torsion_gen)
         E_prime = E.isogeny_codomain(C)
         try:
@@ -159,13 +163,10 @@ def filter_CONDITIONs_i(df):
                 E_prime_sha_order = ecq.lucky({'ainvs':[int(x) for x in E_prime.ainvs()]}, projection='sha')
             except:
                 import pdb; pdb.set_trace()
-        '''
-        revision: now require E_prime[2] is also Z/2
-        if E_prime_sha_order == 1:
-            data_idx.append(index)
-        '''
-        if E_prime_sha_order == 1:
-            # extra requirement of E'(Q)[2] being isomorphic to Z/2Z
+
+        # if E_prime_sha_order == 1:
+        # E'(Q)[2] = Z/2Z, on the premise that E(Q)[2] = Z/2Z
+        if E_prime_sha_order % 2 != 0:
             n_gen = E_prime.torsion_subgroup().ngens()
             E_prime_tors_order = E_prime.torsion_order()
             if n_gen == 1 and E_prime_tors_order % 2 == 0:
@@ -180,69 +181,37 @@ def ord_2_two_torsion_order(torsion_structure, torsion):
         two_torsion_val_2 = ZZ(torsion_structure[0]).valuation(2) + ZZ(torsion_structure[1]).valuation(2)
     return two_torsion_val_2
 
-def get_good_twists(ainvs, conductor, source, B=TWIST_BOUND):
+# Main function
+def bsd_infinite_twists(cond_upper_bound:int = None, cond_lower_bound:int = None, 
+                        LMFDB_FILE = 'data/lmfdb_labels.txt', 
+                        CREMONA_FILE = 'data/cremona_labels.txt',
+                        full_2_torsion = False):
     '''
-    Find good twists for the given elliptic curve.
+    Generates two text files containing elliptic curves over Q
+    which have an infinite family of quadratic twists satisfying the full BSD conjecture formula.
+    The first file contains LMFDB labels, and the second file contains Cremona labels.
 
-    Parameters:
-    - ainvs: a-invariants of the elliptic curve
-    - conductor: conductor of the curve
-    - source: source classification (CLZ20, Zha16_2_tors, or Zha16_no_2_tors)
-    - B: bound for twist search (default: TWIST_BOUND)
-
-    Returns:
-    - String representation of good twists (empty string for now)
-    '''
-
-    if source == 'CLZ20':
-        # We first need to precompute trace of Frobenius values for efficiency
-
-        E = EllipticCurve(ainvs)
-        conductor_primes = ZZ(conductor).prime_divisors()
-        a_p_dict = {}
-        for p in prime_range(B):
-            a_p = E.ap(p)
-            a_p_dict[p] = a_p
-
-        good_twists = []
-
-        for M in range(-B, B + 1):
-            if ZZ(M).is_squarefree() and M != 0:  # Condition a
-                if gcd(M, conductor) == 1: # Condition b
-                    primes_to_check = ZZ(M).prime_divisors()
-                    condition_b = all(a_p_dict[p] % p != 0 for p in primes_to_check)
-                    if condition_b:
-                        condition_c = all(((p % 4 == 1) and (a_p_dict[p].valuation(2) == 1)) for p in primes_to_check)
-                        if condition_c:
-                            # Condition d
-                            if M % 8 == 1:
-                                if all(kronecker_symbol(fundamental_discriminant(M),p) == 1 for p in conductor_primes if p != 2):
-                                    good_twists.append(M)
-        if good_twists:
-            return ','.join(str(t) for t in good_twists)
-        else:
-            return '0'
-    else:
-        # For Zha16 cases, we currently return an empty string
-        # TODO: Implement the actual logic for finding good twists based on the source
-        return '0'
-
-def foo(cond_upper_bound=None, cond_lower_bound=None):
-
-    start_time = time.time()
-    run_summary = f"Params: cond_upper_bound={cond_upper_bound}, cond_lower_bound={cond_lower_bound}"
-    lmfdb_file = LMFDB_FILE  # .format(NUM_AP_VALS, 1, MY_LOCAL_LIM-1)
-    cremona_file = CREMONA_FILE
-    
-    '''
-    2-part of the BSD verification references
+    2-part of the BSD verification references:
         [CLZ20] : L. Cai, C. Li and S. Zhai, On the 2-part of the Birch and Swinnerton-Dyer conjecture for quadratic twists of elliptic
     curves, J. Lond. Math. Soc. (2) 101 (2020), no. 2, 714–734.
         [Zha16] :  S. Zhai, Non-vanishing theorems for quadratic twists of elliptic curves, Asian J. Math. 20 (2016), no. 3, 475–502
+    
+    Args:
+        cond_upper_bound (int): Upper bound for the conductor of elliptic curves to consider. Defaults to None.
+        cond_lower_bound (int): Lower bound for the conductor of elliptic curves to consider. Defaults to None.
+        LMFDB_FILE (str): Path to save the LMFDB labels file. Defaults to 'data/lmfdb_labels.txt'
+        CREMONA_FILE (str): Path to save the Cremona labels file. Defaults to 'data/cremona_labels.txt'
+        full_2_torsion (bool): If True, considers curves with full 2-torsion instead of just Z/2Z torsion. 
+            Defaults to False as there is currently no theoretical result for infinite BSD twists in this case.
     '''
+    start_time = time.time()
+    run_summary = f"Params: cond_upper_bound={cond_upper_bound}, cond_lower_bound={cond_lower_bound}"
+    
+    # Path to save the output files
+    lmfdb_file = LMFDB_FILE
+    cremona_file = CREMONA_FILE
 
-    # get curve data from the LMFDB
-    # checking CONDITIONs 1a, 1d, 1e, 1f
+    # Get curve data from the LMFDB
     ecq_query = {
                 'semistable' : True,  # CONDITION 1a: semistable
                 'num_bad_primes' : {'$gte' : 2},  # CONDITION 1d: at least two bad prime
@@ -261,49 +230,43 @@ def foo(cond_upper_bound=None, cond_lower_bound=None):
     df = pd.DataFrame(list(ecq_payload))
     assert df['lmfdb_iso'].nunique() == len(df), "Values in the 'lmfdb_iso' column are not unique!"
 
-    # CONDITION 1b: a3 in {-2, -1, 0, 1, 2}
+    # CONDITION: a3 in {-2, -1, 0, 1, 2}
     classdata_df = get_a3_a5_a7(df)
     lmfdb_iso_labels_a3_cond = classdata_df[classdata_df['a3'].isin({-2, -1, 0, 1, 2})]
     df = pd.merge(df, lmfdb_iso_labels_a3_cond, on='lmfdb_iso', how='inner')
 
-    # CONDITION 1c: 2 is the only isogeny prime
-    # CONDITION 1d: ramification CONDITION at bad primes
-    df = filter_CONDITIONs_c_d(df)
+    # CONDITION: no rational odd prime isogenies
+    df = filter_CONDITION_p_isogeny(df)
+
+    # CONDITION: ramification at ANY bad primes
+    df = filter_CONDITION_ramification(df)
 
     # checking the 2-part of BSD
-    # --------------
+    df = df[df['rank'] == 0]    # only rank 0 curves
+    # --------------------------------------------------------------
     # using criteria from [CLZ20, Theorem 1.5]
+    # --------------------------------------------------------------
 
-    # CONDITION 1g: E(Q)[2] = Z/2Z
-    df_CLZ20 = filter_CONDITIONs_g(df)
+    # CONDITION: E(Q)[2] = Z/2Z
+    df_CLZ20 = filter_CONDITION_2_torsion(df)
     
-    # CONDITION 1h: 2-ord of special_value/(real_period*regulator) = -1
+    # CONDITION: 2-ord of special_value/(real_period*regulator) = -1
     df_CLZ20 = merge_mwbsd(df_CLZ20)
     df_CLZ20['L_alg'] = (df_CLZ20['special_value']/(df_CLZ20['real_period'] * df_CLZ20['regulator']))
     df_CLZ20['L_alg'] = df_CLZ20['L_alg'].apply(lambda x: QQ(RR(x)).valuation(2))    # now L_alg is 2-valuation of the quantity
     df_CLZ20 = df_CLZ20[df_CLZ20['L_alg'] == -1]  
-
-    # condtion 1i: sha(E') = 1
-    df_CLZ20 = filter_CONDITIONs_i(df_CLZ20)
-
-    '''
-    revision:
-        extra conditions for CLZ20: rank = 0
-    '''
-    df_CLZ20 = df_CLZ20[df_CLZ20['rank'] == 0]
+    df_CLZ20 = filter_CONDITION_E_prime(df_CLZ20)
 
     df_CLZ20['source'] = 'CLZ20'
 
-    # --------------
+    # --------------------------------------------------------------
     # using criteria from [Zha16, Theorem 1.1 - 1.9]
-    # --------------
-    # CONDITION 1g: 
+    # --------------------------------------------------------------
     df_Zha16 = df
     df_Zha16 = merge_mwbsd(df_Zha16)
     df_Zha16['real_components'] = df_Zha16['ainvs'].apply(lambda x: EllipticCurve(x).real_components())  
     df_Zha16['L_alg'] = (df_Zha16['special_value'] * df_Zha16['real_components']/(df_Zha16['real_period']))
     df_Zha16['L_alg_ord_2'] = df_Zha16['L_alg'].apply(lambda x: QQ(RR(x)).valuation(2))
-    df_Zha16 = df_Zha16[df_Zha16['rank'] == 0]      # rank = 0
     
     # part 1: NO 2 torsion & ( CONDITION on L_alg based on signD )
     df_Zha16_no_2_tors = df_Zha16[~df_Zha16['torsion_primes'].apply(lambda x: 2 in x)]   
@@ -311,31 +274,26 @@ def foo(cond_upper_bound=None, cond_lower_bound=None):
 
     df_Zha16_no_2_tors['source'] = 'Zha16_no_2_tors' # watermark
 
-    # part 2: 2 torsion & ( CONDITION on L_alg based on signD )
-    df_Zha16_2_tors = df_Zha16[df_Zha16['torsion_primes'].apply(lambda x: 2 in x)]
-    
-    # df_Zha16_2_tors = df_Zha16_2_tors[df_Zha16_2_tors['sha'] % 2 != 0]   # speculated criterion: sha is odd -> Sel_2(E) = 1
+    if not full_2_torsion:
+        df_Zha16 = df_Zha16_no_2_tors
+    else:   # part 2: 2 torsion & ( CONDITION on L_alg based on signD )
+        df_Zha16_2_tors = df_Zha16[df_Zha16['torsion_primes'].apply(lambda x: 2 in x)]
+        
+        # L value conditions
+        df_Zha16_2_tors = df_Zha16_2_tors.loc[( (df_Zha16_2_tors['L_alg_ord_2'] != 0) & (df_Zha16_2_tors['signD'] < 0) )| ( (df_Zha16_2_tors['L_alg_ord_2'] != 1) & (df_Zha16_2_tors['signD'] > 0) )]
 
-    # L value conditions
-    df_Zha16_2_tors = df_Zha16_2_tors.loc[( (df_Zha16_2_tors['L_alg_ord_2'] != 0) & (df_Zha16_2_tors['signD'] < 0) )| ( (df_Zha16_2_tors['L_alg_ord_2'] != 1) & (df_Zha16_2_tors['signD'] > 0) )]
+        df_Zha16_2_tors['source'] = 'Zha16_2_tors' # watermark
 
-    df_Zha16_2_tors['source'] = 'Zha16_2_tors' # watermark
-
-    # combine the two
-    df_Zha16 = pd.concat([df_Zha16_no_2_tors, df_Zha16_2_tors])
-    # --------------
+        # combine the two
+        df_Zha16 = pd.concat([df_Zha16_no_2_tors, df_Zha16_2_tors])
+    # --------------------------------------------------------------
 
     # combine the results from CLZ20 and Zha16
     df = pd.concat([df_CLZ20, df_Zha16]).sort_values(by=['source','conductor']).reset_index(drop=True)
-
-    # Apply get_good_twists function to add the good_twists column
-    df['good_twists'] = df.apply(lambda row: get_good_twists(row['ainvs'], row['conductor'], row['source']), axis=1)
-
-    df = df[['source','conductor','lmfdb_label','good_twists']].drop_duplicates(subset=['lmfdb_label'])
+    df = df[['source','conductor','lmfdb_label']].drop_duplicates(subset=['lmfdb_label'])
     labels = df['lmfdb_label'].tolist()
     sources = df['source'].tolist()
-    good_twists = df['good_twists'].tolist()
-    res = list(zip(labels, sources, good_twists))
+    res = list(zip(labels, sources))
 
     # calculate the run time
     current_time = get_current_time_str()
@@ -350,24 +308,25 @@ def foo(cond_upper_bound=None, cond_lower_bound=None):
         f.write(f"{current_time}\n")
         f.write(f"{run_summary}\n")
         f.write(f"Run took: {minutes} minutes {seconds} seconds\n\n")
-        f.write("label,source,good_twists\n")
-        for label, source, twist in res:
-            f.write(f"{label}, {source}, {twist}\n")
+        f.write("label,source\n")
+        for label, source in res:
+            f.write(f"{label}, {source}\n")
 
     # save cremona labels
     final_cremona_labels = []
     for label in labels:
         c_label = ecq.lookup(label, projection='Clabel')
         final_cremona_labels.append(c_label)
-    cremona_res = list(zip(final_cremona_labels, sources, good_twists))
+    cremona_res = list(zip(final_cremona_labels, sources))
     with open(cremona_file, 'w') as f:
         # Write the timestamp at the top of the file
         f.write(f"{current_time}\n")
         f.write(f"{run_summary}\n")
         f.write(f"Run took: {minutes} minutes {seconds} seconds\n\n")
-        f.write("label,source,good_twists\n")
-        for label, source, twist in cremona_res:
-            f.write(f"{label}, {source}, {twist}\n")
+        f.write("label,source\n")
+        for label, source in cremona_res:
+            f.write(f"{label}, {source}\n")
     print(f"SUCCESS!!! Data files saved to {lmfdb_file} and {cremona_file}.")
 
-foo(cond_upper_bound=150)
+if __name__ == "__main__":
+    bsd_infinite_twists(cond_upper_bound=150)
