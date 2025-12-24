@@ -9,7 +9,6 @@ To run this, execute the following command in the terminal:
 
 """
 
-
 from lmfdb import db
 import pandas as pd
 import numpy as np
