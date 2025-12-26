@@ -97,14 +97,13 @@ def get_admissible_twists_Zhai(E: EllipticCurve, B: int = 150) -> list:
                 if condition_b:
                     condition_c = (M % 4 == 1)
                     if condition_c:
-                        # Condition d: check that all primes dividing M are inert in Q(E[2])
+                        # Condition: check that all primes dividing M are inert in Q(E[2])
                         f = E.two_division_polynomial()
                         F = NumberField(f, 'a')
                         condition_d = all(p_inert_in_F(p, F) for p in primes_to_check)
                         if condition_d:
-                            # condition e: Kronecker symbol condition
-                            if M % 8 == 1:
-                                if all(kronecker_symbol(fundamental_discriminant(M),p) == 1 for p in conductor_primes if p != 2):
+                            # condition: Kronecker symbol condition
+                            if all(kronecker_symbol(fundamental_discriminant(M),p) == 1 for p in conductor_primes):
                                     admissible_twists.append(M)
         
     return admissible_twists
