@@ -8,8 +8,13 @@ To run this, execute the following command in the terminal:
 
     sage -python Algorithm1.py
 
+To limit the search to curves with conductor < 150 (recommended for testing):
+
+    sage -python Algorithm1.py --cond_upper_bound 150
+
 """
 
+import argparse
 from lmfdb import db
 import pandas as pd
 import numpy as np
@@ -314,4 +319,24 @@ def bsd_infinite_twists(cond_upper_bound:int = None, cond_lower_bound:int = None
     print(f"SUCCESS!!! EC labels saved to {ec_file}.")
 
 if __name__ == "__main__":
-    bsd_infinite_twists(cond_upper_bound=150)
+    parser = argparse.ArgumentParser(
+        description="Find elliptic curves with infinite families of quadratic twists satisfying BSD."
+    )
+    parser.add_argument(
+        "--cond_upper_bound",
+        type=int,
+        default=None,
+        help="Upper bound for conductor (e.g., 150 for testing)"
+    )
+    parser.add_argument(
+        "--cond_lower_bound",
+        type=int,
+        default=None,
+        help="Lower bound for conductor"
+    )
+    args = parser.parse_args()
+
+    bsd_infinite_twists(
+        cond_upper_bound=args.cond_upper_bound,
+        cond_lower_bound=args.cond_lower_bound
+    )
