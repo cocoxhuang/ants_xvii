@@ -1,11 +1,12 @@
-"""ecq_bsd_infinite_twists.py
+"""Algorithm1.py
 
 This script generates a text file which includes elliptic curves with
 a family of quadratic twists that satisfy the full BSD conjecture formula.
+It corresponds to Algorithm 1 in the paper.
 
 To run this, execute the following command in the terminal:
 
-    sage -python ecq_bsd_infinite_twists.py
+    sage -python Algorithm1.py
 
 """
 
@@ -25,7 +26,7 @@ ec_mwbsd = db.ec_mwbsd
 
 # Information columns from lmfdb
 ECQ_COLS = ['ainvs', 'lmfdb_label', 'conductor', 'rank', 'torsion', 'absD', 'bad_primes', 'manin_constant', 
-'regulator', 'sha', 'lmfdb_iso', 'torsion_structure', 'torsion_primes', 'signD']
+'regulator', 'sha', 'lmfdb_iso', 'torsion_structure', 'torsion_primes', 'signD', 'Clabel']
 CLASSDATA_COLS = ['lmfdb_iso', 'aplist']
 MWBSD_COLS = ['lmfdb_label', 'tamagawa_product'] + ['real_period', 'special_value']
 
@@ -182,8 +183,7 @@ def ord_2_two_torsion_order(torsion_structure, torsion):
 
 # Main function
 def bsd_infinite_twists(cond_upper_bound:int = None, cond_lower_bound:int = None, 
-                        LMFDB_FILE = 'data/lmfdb_labels.txt', 
-                        CREMONA_FILE = 'data/cremona_labels.txt',
+                        EC_FILE = 'data/ec_labels.txt', 
                         full_2_torsion = False):
     '''
     Generates two text files containing elliptic curves over Q
@@ -198,8 +198,7 @@ def bsd_infinite_twists(cond_upper_bound:int = None, cond_lower_bound:int = None
     Args:
         cond_upper_bound (int): Upper bound for the conductor of elliptic curves to consider. Defaults to None.
         cond_lower_bound (int): Lower bound for the conductor of elliptic curves to consider. Defaults to None.
-        LMFDB_FILE (str): Path to save the LMFDB labels file. Defaults to 'data/lmfdb_labels.txt'
-        CREMONA_FILE (str): Path to save the Cremona labels file. Defaults to 'data/cremona_labels.txt'
+        EC_FILE (str): Path to save the elliptic curve labels file. Defaults to 'data/ec_labels.txt'
         full_2_torsion (bool): If True, considers curves with full 2-torsion instead of just Z/2Z torsion. 
             Defaults to False as there is currently no theoretical result for infinite BSD twists in this case.
     '''
@@ -207,8 +206,7 @@ def bsd_infinite_twists(cond_upper_bound:int = None, cond_lower_bound:int = None
     run_summary = f"Params: cond_upper_bound={cond_upper_bound}, cond_lower_bound={cond_lower_bound}"
     
     # Path to save the output files
-    lmfdb_file = LMFDB_FILE
-    cremona_file = CREMONA_FILE
+    ec_file = EC_FILE
 
     # Get curve data from the LMFDB
     ecq_query = {
@@ -289,10 +287,11 @@ def bsd_infinite_twists(cond_upper_bound:int = None, cond_lower_bound:int = None
 
     # combine the results from CLZ20 and Zha16
     df = pd.concat([df_CLZ20, df_Zha16]).sort_values(by=['source','conductor']).reset_index(drop=True)
-    df = df[['source','conductor','lmfdb_label']].drop_duplicates(subset=['lmfdb_label'])
-    labels = df['lmfdb_label'].tolist()
+    df = df[['source','conductor','lmfdb_label','Clabel']].drop_duplicates(subset=['lmfdb_label'])
+    lmfdb_labels = df['lmfdb_label'].tolist()
+    cremona_labels = df['Clabel'].tolist()
     sources = df['source'].tolist()
-    res = list(zip(labels, sources))
+    res = list(zip(cremona_labels, sources, lmfdb_labels))
 
     # calculate the run time
     current_time = get_current_time_str()
@@ -302,30 +301,17 @@ def bsd_infinite_twists(cond_upper_bound:int = None, cond_lower_bound:int = None
     seconds = int(elapsed_time % 60)
 
     # save lmfdb labels
-    with open(lmfdb_file, 'w') as f:
+    with open(ec_file, 'w') as f:
         # Write the timestamp at the top of the file
         f.write(f"{current_time}\n")
         f.write(f"{run_summary}\n")
         f.write(f"Run took: {minutes} minutes {seconds} seconds\n\n")
-        f.write("label,source\n")
-        for label, source in res:
-            f.write(f"{label}, {source}\n")
+        f.write("cremona_label,source,lmfdb_label\n")
+        for cremona_label, source, lmfdb_label in res:
+            f.write(f"{cremona_label}, {source}, {lmfdb_label}\n")
 
-    # save cremona labels
-    final_cremona_labels = []
-    for label in labels:
-        c_label = ecq.lookup(label, projection='Clabel')
-        final_cremona_labels.append(c_label)
-    cremona_res = list(zip(final_cremona_labels, sources))
-    with open(cremona_file, 'w') as f:
-        # Write the timestamp at the top of the file
-        f.write(f"{current_time}\n")
-        f.write(f"{run_summary}\n")
-        f.write(f"Run took: {minutes} minutes {seconds} seconds\n\n")
-        f.write("label,source\n")
-        for label, source in cremona_res:
-            f.write(f"{label}, {source}\n")
-    print(f"SUCCESS!!! Data files saved to {lmfdb_file} and {cremona_file}.")
+
+    print(f"SUCCESS!!! EC labels saved to {ec_file}.")
 
 if __name__ == "__main__":
     bsd_infinite_twists(cond_upper_bound=150)
