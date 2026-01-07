@@ -112,13 +112,13 @@ if __name__ == '__main__':
     B = 10000 # bound for admissible twists
 
     res = {}
-    labels_path = 'data/lmfdb_labels.txt'
+    labels_path = 'data/ec_labels.txt'
     with open(labels_path, 'r') as file:
         labels = [line.strip() for line in file.readlines()]
 
     for label in labels[5:]:
         label = label.split(', ')
-        label, source = label[0], label[1]      
+        cremona_label, source, label = label[0], label[1], label[2]      
         ainvs = ecq.lookup(label, projection='ainvs')
         E = EllipticCurve(ainvs)
         if source == 'Zha16_no_2_tors':
