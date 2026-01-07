@@ -1,16 +1,20 @@
 """RS_visualization.py
 
 Generates an HTML animation and PNG frames visualizing the Radziwiłł-Soundararajan
-conjecture for quadratic twists of the elliptic curve 46a1.
+conjecture for quadratic twists of elliptic curves.
 
 Usage:
     sage -python RS_visualization.py --max_d 10000 --num_frames 10
+    sage -python RS_visualization.py --curve 11a1 --max_d 5000 --num_frames 5
 
-This will generate:
-    - PNG frames: output/frames/frame_1000.png, frame_2000.png, ..., frame_10000.png
-    - HTML file: output/rs_conjecture_convergence.html
+Each run creates uniquely named outputs to preserve previous runs:
+    - PNG frames: output/frames/<run_id>/frame_*.png
+    - HTML file: output/<run_id>.html
+
+Where <run_id> is: <curve>_maxd<max_d>_nf<num_frames>_<timestamp>
 
 Arguments:
+    --curve       Elliptic curve label (default: 46a1)
     --max_d       Maximum absolute value of discriminant d (default: 1000)
     --num_frames  Number of frames/checkpoints for the animation (default: 5)
     --output_dir  Directory to save output files (default: output)
@@ -19,6 +23,7 @@ Arguments:
 
 import argparse
 import os
+from datetime import datetime
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import animation
@@ -26,15 +31,23 @@ from scipy.stats import norm, gaussian_kde
 from sage.all import EllipticCurve, is_fundamental_discriminant, gcd, kronecker
 
 
-def generate_z_scores(max_d, debug=True):
-    """Generate z-scores for quadratic twists of 46a1 with |d| < max_d."""
-    print(f"Generating data for |d| < {max_d}...")
-    E = EllipticCurve('46a1')
+def generate_run_id(curve_label, max_d, num_frames):
+    """Generate a unique run identifier based on parameters and timestamp."""
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    # Sanitize curve label for use in filename (replace colons, etc.)
+    safe_label = curve_label.replace(":", "_").replace("/", "_")
+    return f"{safe_label}_maxd{max_d}_nf{num_frames}_{timestamp}"
+
+
+def generate_z_scores(curve_label, max_d, debug=True):
+    """Generate z-scores for quadratic twists of the given curve with |d| < max_d."""
+    print(f"Generating data for curve {curve_label} with |d| < {max_d}...")
+    E = EllipticCurve(curve_label)
     N = int(E.conductor())
     epsE = int(E.root_number())
 
     if debug:
-        print(f"  Curve 46a1: conductor N={N}, root_number={epsE}")
+        print(f"  Curve {curve_label}: conductor N={N}, root_number={epsE}")
 
     mu_E = -0.5 - 1.5 * np.log(2)
     sigma_sq_E = 1.0 + 2.5 * (np.log(2)**2)
@@ -103,7 +116,7 @@ def generate_z_scores(max_d, debug=True):
     return data
 
 
-def create_frame(all_data, current_max_d, output_filename=None):
+def create_frame(all_data, current_max_d, curve_label, output_filename=None):
     """
     Create a single frame showing the distribution for |d| <= current_max_d.
     Saves to output_filename if provided, otherwise displays.
@@ -136,7 +149,7 @@ def create_frame(all_data, current_max_d, output_filename=None):
 
     ax.set_xlim(-4, 4)
     ax.set_ylim(0, 0.75)
-    ax.set_title(f"Distribution of Normalized Sha\n(Twists of 46a1, |d| < {current_max_d}, N={len(subset_z)})")
+    ax.set_title(f"Distribution of Normalized Sha\n(Twists of {curve_label}, |d| < {current_max_d}, N={len(subset_z)})")
     ax.set_xlabel("Standard Deviations from Mean (Z-score)")
     ax.set_ylabel("Probability Density")
     ax.legend(loc='upper right')
@@ -150,7 +163,7 @@ def create_frame(all_data, current_max_d, output_filename=None):
         plt.show()
 
 
-def create_html_animation(all_data, checkpoints, output_filename):
+def create_html_animation(all_data, checkpoints, curve_label, output_filename):
     """Create an HTML animation from the data and checkpoints."""
     fig, ax = plt.subplots(figsize=(10, 7))
 
@@ -190,7 +203,7 @@ def create_html_animation(all_data, checkpoints, output_filename):
         ax.set_ylabel("Probability Density")
 
         title_str = (
-            r"$\bf{Radziwiłł-Soundararajan\ Conjecture\ Verification\ (46a1)}$" + "\n" +
+            r"$\bf{Radziwiłł-Soundararajan\ Conjecture\ Verification}$" + f" ({curve_label})\n" +
             f"Discriminant Bound: $|d| < {current_X}$   |   Sample Size: $N = {N}$"
         )
         ax.set_title(title_str, fontsize=14)
@@ -219,6 +232,12 @@ def main():
         description="Generate RS conjecture visualization (HTML animation + PNG frames)"
     )
     parser.add_argument(
+        "--curve",
+        type=str,
+        default="46a1",
+        help="Elliptic curve label (default: 46a1)"
+    )
+    parser.add_argument(
         "--max_d",
         type=int,
         default=1000,
@@ -238,34 +257,41 @@ def main():
     )
     args = parser.parse_args()
 
+    curve_label = args.curve
     max_d = args.max_d
     num_frames = args.num_frames
     output_dir = args.output_dir
 
+    # Generate unique run identifier
+    run_id = generate_run_id(curve_label, max_d, num_frames)
+    print(f"Run ID: {run_id}")
+
     # Create output directories
-    frames_dir = os.path.join(output_dir, "frames")
-    if not os.path.exists(frames_dir):
-        os.makedirs(frames_dir)
+    frames_dir = os.path.join(output_dir, "frames", run_id)
+    os.makedirs(frames_dir, exist_ok=True)
 
     checkpoints = compute_checkpoints(max_d, num_frames)
+    print(f"Curve: {curve_label}")
     print(f"max_d: {max_d}")
     print(f"num_frames: {num_frames}")
     print(f"checkpoints: {checkpoints}")
 
     print("\nStep 1: Generating z-scores...")
-    full_data = generate_z_scores(max_d)
+    full_data = generate_z_scores(curve_label, max_d)
     print(f"Generated {len(full_data)} data points.\n")
 
     print("Step 2: Creating PNG frames...")
     for val in checkpoints:
         output_path = os.path.join(frames_dir, f"frame_{val}.png")
-        create_frame(full_data, val, output_filename=output_path)
+        create_frame(full_data, val, curve_label, output_filename=output_path)
 
     print("\nStep 3: Creating HTML animation...")
-    html_path = os.path.join(output_dir, "rs_conjecture_convergence.html")
-    create_html_animation(full_data, checkpoints, html_path)
+    html_path = os.path.join(output_dir, f"{run_id}.html")
+    create_html_animation(full_data, checkpoints, curve_label, html_path)
 
-    print("\nDone!")
+    print(f"\nDone!")
+    print(f"  Frames saved to: {frames_dir}/")
+    print(f"  Animation saved to: {html_path}")
 
 
 if __name__ == "__main__":

@@ -18,10 +18,11 @@ ants_xvii/
     ├── RS_visualization.py                # Generate RS conjecture visualizations
     ├── RS_conjecture_visualization.ipynb  # Interactive notebook version
     └── output/
-        ├── frames/                        # PNG animation frames
-        │   └── frame_*.png
-        ├── convergence_*.gif              # Animated GIFs
-        └── rs_conjecture_convergence.html # Interactive HTML animation
+        ├── frames/                        # PNG animation frames (per-run subfolders)
+        │   └── <run_id>/                  # e.g., 46a1_maxd1000_nf5_20260107_120000
+        │       └── frame_*.png
+        ├── <run_id>.html                  # HTML animations (one per run)
+        └── convergence_*.gif              # Legacy animated GIFs
 ```
 
 ## Requirements
@@ -97,19 +98,25 @@ Visualizations for the Radziwiłł-Soundararajan conjecture, which predicts the 
 
 Generates PNG frames and an interactive HTML animation showing how the empirical distribution of normalized Sha values converges to the standard normal distribution N(0,1) as the discriminant bound increases.
 
+Each run creates uniquely named outputs to preserve previous runs, using a run ID of the form: `<curve>_maxd<max_d>_nf<num_frames>_<timestamp>`
+
 **Usage:**
 
 ```bash
 cd ants_xvii/rs_conjecture
 sage -python RS_visualization.py --max_d 10000 --num_frames 10
+sage -python RS_visualization.py --curve 11a1 --max_d 5000 --num_frames 5
 ```
 
 **Arguments:**
+- `--curve`: Elliptic curve label (default: 46a1)
 - `--max_d`: Maximum absolute discriminant (default: 1000)
 - `--num_frames`: Number of animation frames (default: 5)
 - `--output_dir`: Output directory (default: output)
 
-**Output:** PNG frames and `output/rs_conjecture_convergence.html`
+**Output:**
+- PNG frames: `output/frames/<run_id>/frame_*.png`
+- HTML animation: `output/<run_id>.html`
 
 ### RS_conjecture_visualization.ipynb
 
