@@ -1,132 +1,250 @@
-from sage.all import EllipticCurve, primes, round, Integer, QQ, RR, kronecker, ZZ, gcd, prime_range, fundamental_discriminant, kronecker_symbol, NumberField
-import copy
-from lmfdb import db
-import pandas as pd
-import json
+"""Algorithm2.py
 
+Computes admissible BSD twists for elliptic curves identified by Algorithm1.
+
+This script reads elliptic curve labels from the output of Algorithm 1 and computes
+the admissible quadratic twists M (up to a bound B) for which the full BSD conjecture
+formula can be verified.
+
+Two methods are implemented based on the source paper:
+- CLZ20: Cai-Li-Zhai (2020) criteria for curves with E(Q)[2] = Z/2Z
+- Zha16: Zhai (2016) criteria for curves without 2-torsion
+
+Usage:
+    sage -python Algorithm2.py
+
+Output:
+    Writes admissible twists to output/res.json
+
+References:
+    [CLZ20] L. Cai, C. Li and S. Zhai, "On the 2-part of the Birch and
+            Swinnerton-Dyer conjecture for quadratic twists of elliptic curves",
+            J. Lond. Math. Soc. (2) 101 (2020), no. 2, 714-734.
+    [Zha16] S. Zhai, "Non-vanishing theorems for quadratic twists of elliptic curves",
+            Asian J. Math. 20 (2016), no. 3, 475-502.
+"""
+
+import json
+from sage.all import (
+    EllipticCurve, kronecker_symbol, ZZ, gcd,
+    prime_range, fundamental_discriminant, NumberField
+)
+from lmfdb import db
+
+# =============================================================================
+# CONFIGURATION
+# =============================================================================
+
+# Bound for admissible twists M
+TWIST_BOUND = 10000
+
+# Input/Output file paths
+INPUT_LABELS_FILE = 'output/ec_labels.txt'
+OUTPUT_RESULTS_FILE = 'output/res.json'
+
+# LMFDB database handle
 ecq = db.ec_curvedata
 
-'''
-Legacy implementation
+# =============================================================================
+# HELPER FUNCTIONS
+# =============================================================================
 
-def check_condition_2d(M, bad_primes_2):
-    # we want to check that both 2 and 73 split in Q(sqrt(M))
-    delta = M if M % 4 == 1 else 4*M
-    return all([kronecker(delta,p) == 1 for p in bad_primes_2])
+def p_inert_in_F(p: int, F: NumberField) -> bool:
+    """
+    Check if a prime p is inert in the number field F.
 
-def get_admissible_twists_CLZ_v2(E,B):
-    cond = E.conductor()
-    bad_primes_2 = (2*cond).prime_divisors()
-    possible_twists = [M for M in range(2,B) if Integer(M).is_squarefree() and M%3 != 0 and M%cond != 0]
-    admissible_twists = []
-    for M in possible_twists:
-        condition_2d = check_condition_2d(M, bad_primes_2)
-        if not condition_2d:
-            continue
-        prime_divs = ZZ(M).prime_divisors()
-        condition_2b = True
-        condition_2c = True
-        for p in prime_divs:
-            if p % 4 != 1:
-                condition_2c = False
-                break
-            ap_val = E.ap(p)
-            if ap_val % p == 0:
-                condition_2b = False
-                break
-            N_p = p + 1 - ap_val
-            if N_p.valuation(2) != 1:
-                condition_2c = False
-                break
+    A prime is inert if it remains prime in the ring of integers of F,
+    i.e., the ideal (p) is a prime ideal in O_F.
 
-        if all([condition_2b, condition_2c, condition_2d]):
-            admissible_twists.append(M)
-    return admissible_twists
-'''
+    Args:
+        p: A prime number
+        F: A number field
+
+    Returns:
+        True if p is inert in F, False otherwise
+    """
+    I = F.ideal(p)
+    return I.is_prime()
+
+
+# =============================================================================
+# ADMISSIBLE TWIST FUNCTIONS
+# =============================================================================
 
 def get_admissible_twists_CLZ(E: EllipticCurve, B: int = 150) -> list:
-    '''Given an elliptic curve E over Q, return the list of admissible BSD twists M up to bound B'''
+    """
+    Compute admissible BSD twists using the Cai-Li-Zhai (2020) criteria.
+
+    For curves E with E(Q)[2] = Z/2Z, this finds squarefree integers M such that
+    the quadratic twist E_M satisfies the conditions of [CLZ20, Theorem 1.5].
+
+    Conditions on M:
+        (a) M is squarefree and gcd(M, N) = 1 where N is the conductor
+        (b) a_p(E) is not divisible by p for all primes p | M
+        (c) p ≡ 1 (mod 4) and ord_2(a_p) = 1 for all primes p | M
+        (d) M ≡ 1 (mod 8) and (disc(M)/q) = 1 for all odd primes q | N
+
+    Args:
+        E: An elliptic curve over Q
+        B: Upper bound for twists to consider (default: 150)
+
+    Returns:
+        List of admissible twist values M
+    """
     conductor = E.conductor()
     conductor_primes = ZZ(conductor).prime_divisors()
-    a_p_dict = {}
-    for p in prime_range(B):
-        a_p = E.ap(p)
-        a_p_dict[p] = a_p
+
+    # Precompute a_p values for efficiency
+    a_p_dict = {p: E.ap(p) for p in prime_range(B)}
 
     admissible_twists = []
 
     for M in range(2, B + 1):
-        if ZZ(M).is_squarefree() and M != 0:  # Condition: squarefree
-            if gcd(M, conductor) == 1: # Condition: bad primes do not divide ap
-                primes_to_check = ZZ(M).prime_divisors()
-                condition_b = all(a_p_dict[p] % p != 0 for p in primes_to_check)
-                if condition_b:
-                    # Condition: congruent to 1 mod 4 and N_p has 2-valuation 1
-                    condition_c = all(((p % 4 == 1) and (a_p_dict[p].valuation(2) == 1)) for p in primes_to_check)
-                    if condition_c:
-                        # Condition: Kronecker symbol condition
-                        if M % 8 == 1:
-                            if all(kronecker_symbol(fundamental_discriminant(M),p) == 1 for p in conductor_primes if p != 2):
-                                admissible_twists.append(M)
-    
+        # Condition (a): M is squarefree
+        if not ZZ(M).is_squarefree():
+            continue
+
+        # Condition (a): gcd(M, conductor) = 1
+        if gcd(M, conductor) != 1:
+            continue
+
+        primes_dividing_M = ZZ(M).prime_divisors()
+
+        # Condition (b): a_p not divisible by p for all p | M
+        if not all(a_p_dict[p] % p != 0 for p in primes_dividing_M):
+            continue
+
+        # Condition (c): p ≡ 1 (mod 4) and ord_2(a_p) = 1 for all p | M
+        if not all((p % 4 == 1) and (a_p_dict[p].valuation(2) == 1) for p in primes_dividing_M):
+            continue
+
+        # Condition (d): M ≡ 1 (mod 8) and Kronecker conditions
+        if M % 8 != 1:
+            continue
+
+        disc_M = fundamental_discriminant(M)
+        if all(kronecker_symbol(disc_M, p) == 1 for p in conductor_primes if p != 2):
+            admissible_twists.append(M)
+
     return admissible_twists
 
-def p_inert_in_F(p: int, F: NumberField) -> bool:
-    '''Check if prime p is inert in number field F'''
-    I = F.ideal(p)
-    return I.is_prime()
 
 def get_admissible_twists_Zhai(E: EllipticCurve, B: int = 150) -> list:
-    '''Given an elliptic curve E over Q, return the list of admissible BSD twists M up to bound B'''
+    """
+    Compute admissible BSD twists using the Zhai (2016) criteria.
+
+    For curves E without 2-torsion, this finds squarefree integers M such that
+    the quadratic twist E_M satisfies the conditions of [Zha16, Theorems 1.1-1.9].
+
+    Conditions on M:
+        (a) M is squarefree and gcd(M, N) = 1 where N is the conductor
+        (b) a_p(E) is not divisible by p for all primes p | M
+        (c) M ≡ 1 (mod 4)
+        (d) All primes p | M are inert in Q(E[2]) (the 2-division field)
+        (e) Kronecker symbol conditions on conductor primes
+
+    Note: If disc(E) > 0, only positive M are considered.
+
+    Args:
+        E: An elliptic curve over Q
+        B: Upper bound for twists to consider (default: 150)
+
+    Returns:
+        List of admissible twist values M
+    """
     conductor = E.conductor()
     conductor_primes = ZZ(conductor).prime_divisors()
-    a_p_dict = {}
-    for p in prime_range(B):
-        a_p = E.ap(p)
-        a_p_dict[p] = a_p
+
+    # Precompute a_p values for efficiency
+    a_p_dict = {p: E.ap(p) for p in prime_range(B)}
 
     admissible_twists = []
 
+    # Precompute the 2-division field (only need to do this once per curve)
+    two_division_poly = E.two_division_polynomial()
+    two_division_field = NumberField(two_division_poly, 'a')
+
     for M in range(-B, B + 1):
+        if M == 0:
+            continue
+
+        # If discriminant is positive, only consider positive M
         if E.discriminant() > 0 and M < 0:
             continue
-        if ZZ(M).is_squarefree() and M != 0:  # Condition: squarefree
-            if gcd(M, conductor) == 1: # Condition: bad primes do not divide ap
-                primes_to_check = ZZ(M).prime_divisors()
-                condition_b = all(a_p_dict[p] % p != 0 for p in primes_to_check)
-                if condition_b:
-                    condition_c = (M % 4 == 1)
-                    if condition_c:
-                        # Condition: check that all primes dividing M are inert in Q(E[2])
-                        f = E.two_division_polynomial()
-                        F = NumberField(f, 'a')
-                        condition_d = all(p_inert_in_F(p, F) for p in primes_to_check)
-                        if condition_d:
-                            # condition: Kronecker symbol condition
-                            if all(kronecker_symbol(fundamental_discriminant(M),p) == 1 for p in conductor_primes):
-                                    admissible_twists.append(M)
-        
+
+        # Condition (a): M is squarefree
+        if not ZZ(M).is_squarefree():
+            continue
+
+        # Condition (a): gcd(M, conductor) = 1
+        if gcd(M, conductor) != 1:
+            continue
+
+        primes_dividing_M = ZZ(M).prime_divisors()
+
+        # Condition (b): a_p not divisible by p for all p | M
+        if not all(a_p_dict[p] % p != 0 for p in primes_dividing_M):
+            continue
+
+        # Condition (c): M ≡ 1 (mod 4)
+        if M % 4 != 1:
+            continue
+
+        # Condition (d): all primes dividing M are inert in Q(E[2])
+        if not all(p_inert_in_F(p, two_division_field) for p in primes_dividing_M):
+            continue
+
+        # Condition (e): Kronecker symbol conditions
+        disc_M = fundamental_discriminant(M)
+        if all(kronecker_symbol(disc_M, p) == 1 for p in conductor_primes):
+            admissible_twists.append(M)
+
     return admissible_twists
 
-if __name__ == '__main__':
-    B = 10000 # bound for admissible twists
 
-    res = {}
-    labels_path = 'data/ec_labels.txt'
-    with open(labels_path, 'r') as file:
+# =============================================================================
+# MAIN
+# =============================================================================
+
+def main():
+    """
+    Main entry point: read curve labels, compute admissible twists, save results.
+    """
+    print(f"Computing admissible twists up to bound B = {TWIST_BOUND}")
+    print(f"Reading labels from: {INPUT_LABELS_FILE}")
+
+    # Read elliptic curve labels from Algorithm 1 output
+    with open(INPUT_LABELS_FILE, 'r') as file:
         labels = [line.strip() for line in file.readlines()]
 
-    for label in labels[5:]:
-        label = label.split(', ')
-        cremona_label, source, label = label[0], label[1], label[2]      
-        ainvs = ecq.lookup(label, projection='ainvs')
+    results = {}
+
+    # Skip header lines (first 5 lines contain metadata)
+    for label_line in labels[5:]:
+        parts = label_line.split(', ')
+        cremona_label, source, lmfdb_label = parts[0], parts[1], parts[2]
+
+        # Get curve from LMFDB
+        ainvs = ecq.lookup(lmfdb_label, projection='ainvs')
         E = EllipticCurve(ainvs)
+
+        # Compute admissible twists based on source paper
         if source == 'Zha16_no_2_tors':
-            res[label] = get_admissible_twists_Zhai(E,B)
+            twists = get_admissible_twists_Zhai(E, TWIST_BOUND)
         elif source == 'CLZ20':
-            res[label] = get_admissible_twists_CLZ(E,B)
+            twists = get_admissible_twists_CLZ(E, TWIST_BOUND)
         else:
             raise NotImplementedError(f"Source {source} not implemented yet.")
 
-    with open('data/res.json', 'w') as f:
-        json.dump(res, f, indent=4)
+        results[lmfdb_label] = twists
+        print(f"  {lmfdb_label} ({source}): {len(twists)} admissible twists")
+
+    # Save results to JSON
+    with open(OUTPUT_RESULTS_FILE, 'w') as f:
+        json.dump(results, f, indent=4)
+
+    print(f"\nResults saved to: {OUTPUT_RESULTS_FILE}")
+
+
+if __name__ == '__main__':
+    main()

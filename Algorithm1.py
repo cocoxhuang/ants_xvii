@@ -187,8 +187,8 @@ def ord_2_two_torsion_order(torsion_structure, torsion):
     return two_torsion_val_2
 
 # Main function
-def bsd_infinite_twists(cond_upper_bound:int = None, cond_lower_bound:int = None, 
-                        EC_FILE = 'data/ec_labels.txt', 
+def bsd_infinite_twists(cond_upper_bound:int = None, cond_lower_bound:int = None,
+                        EC_FILE = 'output/ec_labels.txt',
                         full_2_torsion = False):
     '''
     Generates two text files containing elliptic curves over Q
@@ -203,7 +203,7 @@ def bsd_infinite_twists(cond_upper_bound:int = None, cond_lower_bound:int = None
     Args:
         cond_upper_bound (int): Upper bound for the conductor of elliptic curves to consider. Defaults to None.
         cond_lower_bound (int): Lower bound for the conductor of elliptic curves to consider. Defaults to None.
-        EC_FILE (str): Path to save the elliptic curve labels file. Defaults to 'data/ec_labels.txt'
+        EC_FILE (str): Path to save the elliptic curve labels file. Defaults to 'output/ec_labels.txt'
         full_2_torsion (bool): If True, considers curves with full 2-torsion instead of just Z/2Z torsion. 
             Defaults to False as there is currently no theoretical result for infinite BSD twists in this case.
     '''
