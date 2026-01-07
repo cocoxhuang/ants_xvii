@@ -7,23 +7,43 @@ Usage:
     sage -python RS_visualization.py --max_d 10000 --num_frames 10
     sage -python RS_visualization.py --curve 11a1 --max_d 5000 --num_frames 5
 
+Restricted mode (use specific d values from a JSON file):
+    sage -python RS_visualization.py --max_d 100000 --restrict_file ../infinite_bsd/output/res_46a1_10000000.json --num_frames 8
+
 Each run creates uniquely named outputs to preserve previous runs:
     - PNG frames: output/frames/<run_id>/frame_*.png
     - HTML file: output/<run_id>.html
 
-Where <run_id> is: <curve>_maxd<max_d>_nf<num_frames>_<timestamp>
+Where <run_id> is:
+    - Unrestricted: <curve>_maxd<max_d>_nf<num_frames>_<timestamp>
+    - Restricted:   <curve>_restricted_nf<num_frames>_<timestamp>
 
 Arguments:
-    --curve       Elliptic curve label (default: 46a1)
-    --max_d       Maximum absolute value of discriminant d (default: 1000)
-    --num_frames  Number of frames/checkpoints for the animation (default: 5)
-    --output_dir  Directory to save output files (default: output)
+    --curve         Elliptic curve label (default: 46a1)
+    --max_d         Maximum absolute value of discriminant d (default: 1000)
+    --num_frames    Number of frames/checkpoints for the animation (default: 5)
+    --output_dir    Directory to save output files (default: output)
+    --restrict_file Path to JSON file containing restricted d values (keyed by curve label)
 
 """
 
 import argparse
+import json
 import os
+import signal
+import sys
 from datetime import datetime
+
+
+class ShaTimeout(Exception):
+    """Raised when SHA computation times out."""
+    pass
+
+
+def _sha_timeout_handler(signum, frame):
+    raise ShaTimeout()
+
+
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import animation
@@ -31,20 +51,32 @@ from scipy.stats import norm, gaussian_kde
 from sage.all import EllipticCurve, is_fundamental_discriminant, gcd, kronecker
 
 
-def generate_run_id(curve_label, max_d, num_frames):
+def generate_run_id(curve_label, max_d, num_frames, restricted=False):
     """Generate a unique run identifier based on parameters and timestamp."""
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     # Sanitize curve label for use in filename (replace colons, etc.)
     safe_label = curve_label.replace(":", "_").replace("/", "_")
-    return f"{safe_label}_maxd{max_d}_nf{num_frames}_{timestamp}"
+    if restricted:
+        return f"{safe_label}_restricted_nf{num_frames}_{timestamp}"
+    else:
+        return f"{safe_label}_maxd{max_d}_nf{num_frames}_{timestamp}"
 
 
-def generate_z_scores(curve_label, max_d, debug=True):
-    """Generate z-scores for quadratic twists of the given curve with |d| < max_d."""
-    print(f"Generating data for curve {curve_label} with |d| < {max_d}...")
+def generate_z_scores(curve_label, max_d=None, restricted_ds=None, debug=True):
+    """
+    Generate z-scores for quadratic twists of the given curve.
+
+    If restricted_ds is provided, iterate over exactly those d values.
+    Otherwise, iterate over d in range(-max_d, max_d+1) testing both signs.
+    """
     E = EllipticCurve(curve_label)
     N = int(E.conductor())
     epsE = int(E.root_number())
+
+    if restricted_ds is not None:
+        print(f"Generating data for curve {curve_label} with {len(restricted_ds)} restricted d values...")
+    else:
+        print(f"Generating data for curve {curve_label} with |d| < {max_d}...")
 
     if debug:
         print(f"  Curve {curve_label}: conductor N={N}, root_number={epsE}")
@@ -62,46 +94,74 @@ def generate_z_scores(curve_label, max_d, debug=True):
     count_sha_ok = 0
     count_loglog = 0
 
-    for d_val in range(1, max_d + 1):
-        for sign in [1, -1]:
-            d = sign * d_val
-            count_total += 1
+    # Determine which d values to iterate over
+    if restricted_ds is not None:
+        d_values = restricted_ds
+    else:
+        # Original behavior: iterate d_val from 1 to max_d, testing both +d and -d
+        d_values = []
+        for d_val in range(1, max_d + 1):
+            d_values.append(d_val)
+            d_values.append(-d_val)
 
-            if not is_fundamental_discriminant(d):
-                continue
-            count_fund += 1
+    for idx, d in enumerate(d_values):
+        if debug and idx % 50 == 0:
+            print(f"  Processing d #{idx+1}/{len(d_values)} (d={d})...")
+            sys.stdout.flush()
+        count_total += 1
 
-            if gcd(d, 2*N) != 1:
-                continue
-            count_gcd += 1
+        if not is_fundamental_discriminant(d):
+            continue
+        count_fund += 1
 
-            kron_val = kronecker(d, -N)
-            if epsE * kron_val != 1:
-                continue
-            count_kron += 1
+        if gcd(d, 2*N) != 1:
+            continue
+        count_gcd += 1
 
+        kron_val = kronecker(d, -N)
+        if epsE * kron_val != 1:
+            continue
+        count_kron += 1
+
+        try:
+            E_d = E.quadratic_twist(d)
+            if debug:
+                print(f"    Computing SHA for d={d}...", end=" ", flush=True)
+
+            # Set 10-second timeout for SHA computation
+            signal.signal(signal.SIGALRM, _sha_timeout_handler)
+            signal.alarm(10)
             try:
-                E_d = E.quadratic_twist(d)
-                sha_an_float = float(E_d.sha().an(descent_second_limit=5))
+                sha_an_float = float(E_d.sha().an_numerical(prec=20, proof=False))
+            finally:
+                signal.alarm(0)  # Cancel the alarm
 
-                sha_int = int(round(sha_an_float))
-                if sha_int < 1:
-                    continue
-                count_sha_ok += 1
+            if debug:
+                print(f"= {sha_an_float}")
 
-                val = np.log(sha_int / np.sqrt(abs(d)))
-                log_log_d = np.log(np.log(abs(d)))
-                if log_log_d <= 0:
-                    continue
-                count_loglog += 1
-
-                z = (val - (mu_E * log_log_d)) / np.sqrt(sigma_sq_E * log_log_d)
-                data.append((abs(d), z))
-
-            except Exception as e:
-                if debug and count_kron < 10:
-                    print(f"  Exception for d={d}: {e}")
+            sha_int = int(round(sha_an_float))
+            if sha_int < 1:
                 continue
+            count_sha_ok += 1
+
+            val = np.log(sha_int / np.sqrt(abs(d)))
+            log_log_d = np.log(np.log(abs(d)))
+            if log_log_d <= 0:
+                continue
+            count_loglog += 1
+
+            z = (val - (mu_E * log_log_d)) / np.sqrt(sigma_sq_E * log_log_d)
+            data.append((abs(d), z))
+
+        except ShaTimeout:
+            if debug:
+                print("TIMEOUT")
+            continue
+
+        except Exception as e:
+            if debug and count_kron < 10:
+                print(f"  Exception for d={d}: {e}")
+            continue
 
     if debug:
         print(f"  Filter stats:")
@@ -227,6 +287,14 @@ def compute_checkpoints(max_d, num_frames):
     return checkpoints
 
 
+def compute_checkpoints_from_data(data, num_frames):
+    """Compute evenly-spaced checkpoints based on the actual data range."""
+    if not data:
+        return []
+    max_d = max(abs(d) for d, _ in data)
+    return compute_checkpoints(max_d, num_frames)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Generate RS conjecture visualization (HTML animation + PNG frames)"
@@ -240,8 +308,8 @@ def main():
     parser.add_argument(
         "--max_d",
         type=int,
-        default=1000,
-        help="Maximum absolute value of discriminant d (default: 1000)"
+        default=None,
+        help="Maximum absolute value of discriminant d (default: 1000 for unrestricted mode; if restrict_file is used without max_d, all values in file are used)"
     )
     parser.add_argument(
         "--num_frames",
@@ -255,32 +323,72 @@ def main():
         default="output",
         help="Directory to save output files (default: output)"
     )
+    parser.add_argument(
+        "--restrict_file",
+        type=str,
+        default=None,
+        help="Path to JSON file containing restricted d values (keyed by curve label)"
+    )
     args = parser.parse_args()
 
     curve_label = args.curve
     max_d = args.max_d
     num_frames = args.num_frames
     output_dir = args.output_dir
+    restrict_file = args.restrict_file
+
+    # Load restricted d values if provided
+    restricted_ds = None
+    if restrict_file:
+        with open(restrict_file, 'r') as f:
+            restrict_data = json.load(f)
+
+        if curve_label not in restrict_data:
+            available_keys = list(restrict_data.keys())
+            raise ValueError(
+                f"Curve '{curve_label}' not found in restrict file. "
+                f"Available curves: {available_keys}"
+            )
+
+        restricted_ds = restrict_data[curve_label]
+        print(f"Loaded {len(restricted_ds)} restricted d values for curve {curve_label}")
+
+        # Filter restricted_ds by max_d if both are provided
+        if max_d is not None:
+            restricted_ds = [d for d in restricted_ds if abs(d) <= max_d]
+            print(f"Filtered to {len(restricted_ds)} values with |d| <= {max_d}")
+
+    # Default max_d for unrestricted mode
+    if restricted_ds is None and max_d is None:
+        max_d = 1000
 
     # Generate unique run identifier
-    run_id = generate_run_id(curve_label, max_d, num_frames)
+    run_id = generate_run_id(curve_label, max_d, num_frames, restricted=(restricted_ds is not None))
     print(f"Run ID: {run_id}")
 
     # Create output directories
     frames_dir = os.path.join(output_dir, "frames", run_id)
     os.makedirs(frames_dir, exist_ok=True)
 
-    checkpoints = compute_checkpoints(max_d, num_frames)
     print(f"Curve: {curve_label}")
-    print(f"max_d: {max_d}")
+    if restricted_ds is not None:
+        print(f"Mode: RESTRICTED ({len(restricted_ds)} d values)")
+    else:
+        print(f"Mode: unrestricted, max_d={max_d}")
     print(f"num_frames: {num_frames}")
-    print(f"checkpoints: {checkpoints}")
 
     print("\nStep 1: Generating z-scores...")
-    full_data = generate_z_scores(curve_label, max_d)
+    full_data = generate_z_scores(curve_label, max_d=max_d, restricted_ds=restricted_ds)
     print(f"Generated {len(full_data)} data points.\n")
 
-    print("Step 2: Creating PNG frames...")
+    # Compute checkpoints based on actual data if restricted, otherwise use max_d
+    if restricted_ds is not None:
+        checkpoints = compute_checkpoints_from_data(full_data, num_frames)
+    else:
+        checkpoints = compute_checkpoints(max_d, num_frames)
+    print(f"checkpoints: {checkpoints}")
+
+    print("\nStep 2: Creating PNG frames...")
     for val in checkpoints:
         output_path = os.path.join(frames_dir, f"frame_{val}.png")
         create_frame(full_data, val, curve_label, output_filename=output_path)
