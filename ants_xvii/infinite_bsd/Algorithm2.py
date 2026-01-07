@@ -24,6 +24,11 @@ References:
             Asian J. Math. 20 (2016), no. 3, 475-502.
 """
 
+import sys
+import os
+# Add repo root to path (go up 2 levels: infinite_bsd -> ants_xvii -> repo_root)
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
 import json
 from sage.all import (
     EllipticCurve, kronecker_symbol, ZZ, gcd,

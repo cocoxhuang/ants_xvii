@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+import sys
+import os
+# Add repo root to path (go up 2 levels: infinite_bsd -> ants_xvii -> repo_root)
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
 import argparse
 from lmfdb import db
 from sage.all import ZZ, EllipticCurve, QQ, RR

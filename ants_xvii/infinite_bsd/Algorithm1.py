@@ -4,7 +4,7 @@ This script generates a text file which includes elliptic curves with
 a family of quadratic twists that satisfy the full BSD conjecture formula.
 It corresponds to Algorithm 1 in the paper.
 
-To run this, execute the following command in the terminal:
+To run this, execute the following command from this level of the directory in the terminal:
 
     sage -python Algorithm1.py
 
@@ -13,6 +13,11 @@ To limit the search to curves with conductor < 150 (recommended for testing):
     sage -python Algorithm1.py --cond_upper_bound 150
 
 """
+
+import sys
+import os
+# Add repo root to path (go up 2 levels: infinite_bsd -> ants_xvii -> repo_root)
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 import argparse
 from lmfdb import db
