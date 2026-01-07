@@ -104,7 +104,11 @@ def get_admissible_twists_CLZ(E: EllipticCurve, B: int = 150) -> list:
 
     admissible_twists = []
 
-    for M in range(2, B + 1):
+    for M in range(-B, B + 1):
+
+        if M == 0:
+            continue
+
         # Condition (a): M is squarefree
         if not ZZ(M).is_squarefree():
             continue
@@ -120,7 +124,7 @@ def get_admissible_twists_CLZ(E: EllipticCurve, B: int = 150) -> list:
             continue
 
         # Condition (c): p ≡ 1 (mod 4) and ord_2(a_p) = 1 for all p | M
-        if not all((p % 4 == 1) and (a_p_dict[p].valuation(2) == 1) for p in primes_dividing_M):
+        if not all((p % 4 == 1) and ((p+1-a_p_dict[p]).valuation(2) == 1) for p in primes_dividing_M):
             continue
 
         # Condition (d): M ≡ 1 (mod 8) and Kronecker conditions
@@ -241,8 +245,8 @@ def main():
         else:
             raise NotImplementedError(f"Source {source} not implemented yet.")
 
-        results[lmfdb_label] = twists
-        print(f"  {lmfdb_label} ({source}): {len(twists)} admissible twists")
+        results[cremona_label] = twists
+        print(f"  {cremona_label} ({source}): {len(twists)} admissible twists")
 
     # Save results to JSON
     with open(OUTPUT_RESULTS_FILE, 'w') as f:

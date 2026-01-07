@@ -6,8 +6,8 @@ conjecture for quadratic twists of the elliptic curve 46a1.
 Usage:
     sage -python RS_visualization.py --max_d 10000 --num_frames 10
 
-This will generate in the output/ subfolder:
-    - PNG files: output/frame_1000.png, output/frame_2000.png, ..., output/frame_10000.png
+This will generate:
+    - PNG frames: output/frames/frame_1000.png, frame_2000.png, ..., frame_10000.png
     - HTML file: output/rs_conjecture_convergence.html
 
 Arguments:
@@ -242,8 +242,10 @@ def main():
     num_frames = args.num_frames
     output_dir = args.output_dir
 
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
+    # Create output directories
+    frames_dir = os.path.join(output_dir, "frames")
+    if not os.path.exists(frames_dir):
+        os.makedirs(frames_dir)
 
     checkpoints = compute_checkpoints(max_d, num_frames)
     print(f"max_d: {max_d}")
@@ -256,7 +258,7 @@ def main():
 
     print("Step 2: Creating PNG frames...")
     for val in checkpoints:
-        output_path = os.path.join(output_dir, f"frame_{val}.png")
+        output_path = os.path.join(frames_dir, f"frame_{val}.png")
         create_frame(full_data, val, output_filename=output_path)
 
     print("\nStep 3: Creating HTML animation...")

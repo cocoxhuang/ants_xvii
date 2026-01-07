@@ -18,7 +18,8 @@ ants_xvii/
     ├── RS_visualization.py                # Generate RS conjecture visualizations
     ├── RS_conjecture_visualization.ipynb  # Interactive notebook version
     └── output/
-        ├── frame_*.png                    # Animation frames
+        ├── frames/                        # PNG animation frames
+        │   └── frame_*.png
         ├── convergence_*.gif              # Animated GIFs
         └── rs_conjecture_convergence.html # Interactive HTML animation
 ```
