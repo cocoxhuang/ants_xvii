@@ -1,31 +1,6 @@
-Generated at 02:04 (eastern) on Wednesday 07 January 2026
-Params: cond_upper_bound=200, cond_lower_bound=None
-Run took: 0 minutes 7 seconds
+Generated at 05:10 (eastern) on Wednesday 07 January 2026
+Params: cond_upper_bound=50, cond_lower_bound=None
+Run took: 0 minutes 1 seconds
 
 cremona_label,source,lmfdb_label
 46a1, CLZ20, 46.a2
-69a1, CLZ20, 69.a2
-77c1, CLZ20, 77.c2
-85a1, CLZ20, 85.a1
-94a1, CLZ20, 94.a2
-114b1, CLZ20, 114.a1
-141b1, CLZ20, 141.b2
-142c1, CLZ20, 142.b2
-155b1, CLZ20, 155.b2
-158e1, CLZ20, 158.e2
-178b1, CLZ20, 178.a2
-194a1, CLZ20, 194.a2
-106d1, Zha16_no_2_tors, 106.b1
-115a1, Zha16_no_2_tors, 115.a1
-118d1, Zha16_no_2_tors, 118.b1
-118c1, Zha16_no_2_tors, 118.d1
-141e1, Zha16_no_2_tors, 141.e1
-174e1, Zha16_no_2_tors, 174.a1
-174c1, Zha16_no_2_tors, 174.d1
-182c1, Zha16_no_2_tors, 182.a1
-186a1, Zha16_no_2_tors, 186.a1
-186c1, Zha16_no_2_tors, 186.b1
-187b1, Zha16_no_2_tors, 187.b1
-195d1, Zha16_no_2_tors, 195.b1
-195c1, Zha16_no_2_tors, 195.c1
-195b1, Zha16_no_2_tors, 195.d1

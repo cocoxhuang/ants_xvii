@@ -41,11 +41,11 @@ from lmfdb import db
 # =============================================================================
 
 # Bound for admissible twists M
-TWIST_BOUND = 10000
+TWIST_BOUND = 10000000
 
 # Input/Output file paths
 INPUT_LABELS_FILE = 'output/ec_labels.txt'
-OUTPUT_RESULTS_FILE = 'output/res.json'
+OUTPUT_RESULTS_FILE = f'output/res_46a1_{TWIST_BOUND}.json'
 
 # LMFDB database handle
 ecq = db.ec_curvedata
@@ -104,10 +104,7 @@ def get_admissible_twists_CLZ(E: EllipticCurve, B: int = 150) -> list:
 
     admissible_twists = []
 
-    for M in range(-B, B + 1):
-
-        if M == 0:
-            continue
+    for M in range(1, B + 1):
 
         # Condition (a): M is squarefree
         if not ZZ(M).is_squarefree():
