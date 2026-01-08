@@ -35,6 +35,26 @@ import sys
 from datetime import datetime
 
 
+class TeeStream:
+    """Stream that writes to both stdout and a log file."""
+
+    def __init__(self, log_file_path):
+        self.terminal = sys.stdout
+        self.log_file = open(log_file_path, 'a', buffering=1)  # Line buffered for real-time
+
+    def write(self, message):
+        self.terminal.write(message)
+        self.log_file.write(message)
+        self.log_file.flush()  # Ensure real-time writing
+
+    def flush(self):
+        self.terminal.flush()
+        self.log_file.flush()
+
+    def close(self):
+        self.log_file.close()
+
+
 class ShaTimeout(Exception):
     """Raised when SHA computation times out."""
     pass
@@ -176,7 +196,7 @@ def generate_z_scores(curve_label, max_d=None, restricted_ds=None, debug=True):
     return data
 
 
-def create_frame(all_data, current_max_d, curve_label, output_filename=None):
+def create_frame(all_data, current_max_d, curve_label, output_filename=None, restricted=False):
     """
     Create a single frame showing the distribution for |d| <= current_max_d.
     Saves to output_filename if provided, otherwise displays.
@@ -209,7 +229,10 @@ def create_frame(all_data, current_max_d, curve_label, output_filename=None):
 
     ax.set_xlim(-4, 4)
     ax.set_ylim(0, 0.75)
-    ax.set_title(f"Distribution of Normalized Sha\n(Twists of {curve_label}, |d| < {current_max_d}, N={len(subset_z)})")
+    if restricted:
+        ax.set_title(f"Distribution of Normalized Sha\n(Good twists of {curve_label}, |d| < {current_max_d}, N={len(subset_z)})")
+    else:
+        ax.set_title(f"Distribution of Normalized Sha\n(Twists of {curve_label}, |d| < {current_max_d}, N={len(subset_z)})")
     ax.set_xlabel("Standard Deviations from Mean (Z-score)")
     ax.set_ylabel("Probability Density")
     ax.legend(loc='upper right')
@@ -223,7 +246,7 @@ def create_frame(all_data, current_max_d, curve_label, output_filename=None):
         plt.show()
 
 
-def create_html_animation(all_data, checkpoints, curve_label, output_filename):
+def create_html_animation(all_data, checkpoints, curve_label, output_filename, restricted=False):
     """Create an HTML animation from the data and checkpoints."""
     fig, ax = plt.subplots(figsize=(10, 7))
 
@@ -262,10 +285,16 @@ def create_html_animation(all_data, checkpoints, curve_label, output_filename):
         ax.set_xlabel("Normalized Discrepancy (Z-score)")
         ax.set_ylabel("Probability Density")
 
-        title_str = (
-            r"$\bf{Radziwiłł-Soundararajan\ Conjecture\ Verification}$" + f" ({curve_label})\n" +
-            f"Discriminant Bound: $|d| < {current_X}$   |   Sample Size: $N = {N}$"
-        )
+        if restricted:
+            title_str = (
+                r"$\bf{Radziwiłł-Soundararajan\ Conjecture\ Verification}$" + f" ({curve_label}, good twists)\n" +
+                f"Discriminant Bound: $|d| < {current_X}$   |   Sample Size: $N = {N}$"
+            )
+        else:
+            title_str = (
+                r"$\bf{Radziwiłł-Soundararajan\ Conjecture\ Verification}$" + f" ({curve_label})\n" +
+                f"Discriminant Bound: $|d| < {current_X}$   |   Sample Size: $N = {N}$"
+            )
         ax.set_title(title_str, fontsize=14)
 
     ani = animation.FuncAnimation(fig, update, frames=len(checkpoints), interval=1000)
@@ -370,6 +399,12 @@ def main():
     frames_dir = os.path.join(output_dir, "frames", run_id)
     os.makedirs(frames_dir, exist_ok=True)
 
+    # Set up logging to file for real-time monitoring
+    log_file_path = os.path.join(output_dir, f"{run_id}.log")
+    tee = TeeStream(log_file_path)
+    sys.stdout = tee
+    print(f"Logging to: {log_file_path}")
+
     print(f"Curve: {curve_label}")
     if restricted_ds is not None:
         print(f"Mode: RESTRICTED ({len(restricted_ds)} d values)")
@@ -388,18 +423,25 @@ def main():
         checkpoints = compute_checkpoints(max_d, num_frames)
     print(f"checkpoints: {checkpoints}")
 
+    is_restricted = restricted_ds is not None
+
     print("\nStep 2: Creating PNG frames...")
     for val in checkpoints:
         output_path = os.path.join(frames_dir, f"frame_{val}.png")
-        create_frame(full_data, val, curve_label, output_filename=output_path)
+        create_frame(full_data, val, curve_label, output_filename=output_path, restricted=is_restricted)
 
     print("\nStep 3: Creating HTML animation...")
     html_path = os.path.join(output_dir, f"{run_id}.html")
-    create_html_animation(full_data, checkpoints, curve_label, html_path)
+    create_html_animation(full_data, checkpoints, curve_label, html_path, restricted=is_restricted)
 
     print(f"\nDone!")
     print(f"  Frames saved to: {frames_dir}/")
     print(f"  Animation saved to: {html_path}")
+    print(f"  Log saved to: {log_file_path}")
+
+    # Restore stdout and close log file
+    sys.stdout = tee.terminal
+    tee.close()
 
 
 if __name__ == "__main__":
