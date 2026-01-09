@@ -98,25 +98,42 @@ Visualizations for the Radziwiłł-Soundararajan conjecture, which predicts the 
 
 Generates PNG frames and an interactive HTML animation showing how the empirical distribution of normalized Sha values converges to the standard normal distribution N(0,1) as the discriminant bound increases.
 
-Each run creates uniquely named outputs to preserve previous runs, using a run ID of the form: `<curve>_maxd<max_d>_nf<num_frames>_<timestamp>`
+Supports two visualization modes:
+- **PDF mode** (`--pdf`): Histogram with kernel density estimate
+- **CDF mode** (`--cdf`): Cumulative distribution function comparison
+
+SHA data is automatically saved to a JSON file for reuse, avoiding expensive recomputation.
 
 **Usage:**
 
 ```bash
 cd ants_xvii/rs_conjecture
-sage -python RS_visualization.py --max_d 10000 --num_frames 10
-sage -python RS_visualization.py --curve 11a1 --max_d 5000 --num_frames 5
+
+# PDF (histogram) visualization
+sage -python RS_visualization.py --max_d 10000 --num_frames 10 --pdf
+
+# CDF (cumulative distribution) visualization
+sage -python RS_visualization.py --max_d 10000 --num_frames 10 --cdf
+
+# Load from previously saved data file (fast, skips computation)
+sage -python RS_visualization.py --data_file output/<run_id>_data.json --cdf
+
+# Filter loaded data to smaller range
+sage -python RS_visualization.py --data_file output/<run_id>_data.json --max_d 5000 --pdf
 ```
 
 **Arguments:**
 - `--curve`: Elliptic curve label (default: 46a1)
-- `--max_d`: Maximum absolute discriminant (default: 1000)
+- `--max_d`: Maximum absolute discriminant (default: 1000; also filters `--data_file`)
 - `--num_frames`: Number of animation frames (default: 5)
 - `--output_dir`: Output directory (default: output)
+- `--data_file`: Path to previously saved SHA data JSON file (skips computation)
+- `--pdf` / `--cdf`: Visualization mode (required, mutually exclusive)
 
 **Output:**
 - PNG frames: `output/frames/<run_id>/frame_*.png`
 - HTML animation: `output/<run_id>.html`
+- Data file: `output/<run_id>_data.json` (for reuse)
 
 ### RS_conjecture_visualization.ipynb
 
