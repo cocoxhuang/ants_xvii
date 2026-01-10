@@ -25,7 +25,7 @@ import pandas as pd
 import numpy as np
 import pytz
 from sage.all import (EllipticCurve, primes_first_n, round, Integer, QQ, RR, 
-                    ZZ, prime_range, fundamental_discriminant, gcd, kronecker_symbol)  
+                    ZZ, primes, fundamental_discriminant, gcd, kronecker_symbol)  
 import time
 from datetime import datetime
 
@@ -183,6 +183,23 @@ def filter_CONDITION_E_prime(df: pd.DataFrame) -> pd.DataFrame:
                 data_idx.append(index)
     return df.loc[data_idx]
 
+def filter_CONDITION_S(df: pd.DataFrame, S_bound: int = 10000) -> pd.DataFrame:
+    '''CONDITION: S is nonempty where S = { q = 1 mod 4 : q does not divide N, ord_2(N_q)) = 1 }'''
+    data_idx = []
+    for index,curve in df.iterrows():
+        ainvs = curve['ainvs']
+        E = EllipticCurve(ainvs)
+        cond = curve['conductor']
+
+        candidates = list(primes(S_bound))
+        for q in candidates:
+            if q % 4 == 1 and cond % q != 0:
+                N_q = ZZ(1 + q - E.ap(q))
+                if N_q.valuation(2) == 1:
+                    data_idx.append(index)
+                    break
+    return df.loc[data_idx]
+
 def ord_2_two_torsion_order(torsion_structure, torsion):
     '''returns ord_2( the order of the 2-torsion subgroup)'''
     if len(torsion_structure) == 1:
@@ -263,6 +280,9 @@ def bsd_infinite_twists(cond_upper_bound:int = None, cond_lower_bound:int = None
     df_CLZ20['L_alg'] = df_CLZ20['L_alg'].apply(lambda x: QQ(RR(x)).valuation(2))    # now L_alg is 2-valuation of the quantity
     df_CLZ20 = df_CLZ20[df_CLZ20['L_alg'] == -1]  
     df_CLZ20 = filter_CONDITION_E_prime(df_CLZ20)
+
+    # CONDITION: S is nonempty (up to a bound)
+    df_CLZ20 = filter_CONDITION_S(df_CLZ20)
 
     df_CLZ20['source'] = 'CLZ20'
 
