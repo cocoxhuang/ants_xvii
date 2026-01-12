@@ -1,11 +1,34 @@
+'''
+Normality test and estimations for Radziwill-Soundararajan conjecture data:
+- Shapiro-Wilk test for normality
+- Kolmogorov-Smirnov distance to standard normal
+- Wasserstein distance to standard normal
+
+To run:
+    python3 normal_test.py --label <CREMONA_LABEL>
+'''
+
 import json
 from scipy import stats
 import numpy as np
 from matplotlib import pyplot as plt
 import argparse
 
-def read_sha_data(label: str) -> tuple[np.ndarray, np.ndarray]:
-    file = f'output/{label}_sha_data.json'
+def read_sha_data(label: str = None, data_path: str = None) -> tuple[np.ndarray, np.ndarray]:
+    ''' Read sha data from JSON file given by label or data_path.
+
+    Args:
+        label: CREMONA Label for the data set (e.g., "69a1"). CAUTION: this uses precomputed data
+            with max |d| = 10000.
+        data_path: Path to the JSON file containing the SHA data.
+    '''
+    if label is not None:
+        file = f'output/sha_data/{label}_maxd10000_sha_data.json'
+    elif data_path is not None:
+        file = f'{data_path}'
+    else:
+        raise ValueError("Either label or data_path must be provided.")
+    
     with open(file, 'r') as f:
         data = json.load(f)
     sha_data = data['data']
@@ -60,7 +83,6 @@ def plot_p_values(SW_res: dict[int, float], label: str) -> None:
     plt.ylabel('Shapiro-Wilk log p-value')
     plt.title(f'Shapiro-Wilk log p-values for curve {label}')
     plt.legend(['log p-value'])
-    plt.grid()
     plt.savefig(f'output/SW_test/plots/{label}_shapiro_wilk_log_pvalues_{max(bounds)}.png')
     plt.close()
 
@@ -76,7 +98,6 @@ def plot_SW_statistics(SW_res: dict[int, float], label: str) -> None:
     plt.ylabel('Shapiro-Wilk statistic')
     plt.title(f'Shapiro-Wilk statistics for curve {label}')
     plt.legend(['statistic'])
-    plt.grid()
     plt.savefig(f'output/SW_test/plots/{label}_shapiro_wilk_statistics_{max(bounds)}.png')
     plt.close()
 
@@ -161,7 +182,6 @@ def plot_KS_distances(KS_res: dict[int, float], label: str) -> None:
     plt.ylabel('KS distance')
     plt.title(f'KS distances for curve {label}')
     plt.legend(['distance'])
-    plt.grid()
     plt.savefig(f'output/KS_dist/plots/{label}_ks_distances_{max(bounds)}.png')
     plt.close()
 
@@ -177,18 +197,23 @@ def plot_Wasserstein_distances(Wasserstein_res: dict[int, float], label: str) ->
     plt.ylabel('Wasserstein distance')
     plt.title(f'Wasserstein distances for curve {label}')
     plt.legend(['distance'])
-    plt.grid()
     plt.savefig(f'output/Wasserstein_dist/plots/{label}_wasserstein_{max(bounds)}.png')
     plt.close()
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Normality test for Radziwill-Soundararajan conjecture data.')
-    parser.add_argument('--label', type=str, required=True, help='CREMONA Label for the data set (e.g., "69a1").')
+    parser.add_argument('--label', type=str, default=None, help='CREMONA Label for the data set (e.g., "69a1") using precomputed data with max |d| = 10000.')
+    parser.add_argument('--data-path', type=str, default=None, help='Path to the directory containing the SHA data JSON files.')
     args = parser.parse_args()
 
     label = args.label
-    ds, sha_values = read_sha_data(label)
+    data_path = args.data_path
+    
+    assert label is not None or data_path is not None, "Either --label or --data-path must be provided."
+
+    # Read data and compute Z values
+    ds, sha_values = read_sha_data(label, data_path)
     ob_data, ds = compute_Z_values(ds, sha_values)
 
     # Shapiro-Wilk test
