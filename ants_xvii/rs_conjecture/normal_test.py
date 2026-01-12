@@ -15,17 +15,17 @@ from matplotlib import pyplot as plt
 import argparse
 
 def read_sha_data(label: str = None, data_path: str = None) -> tuple[np.ndarray, np.ndarray]:
-    ''' Read sha data from JSON file given by label or data_path.
+    ''' Read sha data from JSON file given by label or data_path. If both are provided, data_path takes precedence.
 
     Args:
         label: CREMONA Label for the data set (e.g., "69a1"). CAUTION: this uses precomputed data
             with max |d| = 10000.
         data_path: Path to the JSON file containing the SHA data.
     '''
-    if label is not None:
-        file = f'output/sha_data/{label}_maxd10000_sha_data.json'
-    elif data_path is not None:
+    if data_path is not None:
         file = f'{data_path}'
+    elif label is not None:
+        file = f'output/sha_data/{label}_maxd10000_sha_data.json'
     else:
         raise ValueError("Either label or data_path must be provided.")
     
