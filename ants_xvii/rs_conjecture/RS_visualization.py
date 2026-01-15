@@ -94,6 +94,41 @@ def generate_run_id(curve_label, max_d, num_frames, restricted=False):
         return f"{safe_label}_maxd{max_d}_nf{num_frames}_{timestamp}"
 
 
+def sha_an(E, root_number):
+
+    if root_number == -1:
+        raise ValueError("we are not dealing with this case")
+    
+    # Henceforth the rank is even
+
+    Lvalue_at_1, err = E.lseries().at1()
+
+    # if zero is in the interval (L_value_at_1 - err, L_value_at_1 + err
+    # then the rank might be 2, 4, ...; in this case we want to do the 
+    # same computation as in `generate_z_scores` below
+
+    if (Lvalue_at_1 - err < 0.0) and (Lvalue_at_1 + err > 0.0):
+        signal.signal(signal.SIGALRM, _sha_timeout_handler)
+        signal.alarm(10)
+        try:
+            sha_an_float = E.sha().an_numerical(prec=20, proof=False)
+        finally:
+            signal.alarm(0)  # Cancel the alarm
+
+        sha_size = int(sha_an_float.round())
+    else:
+        # in this case we are sure that the rank is 0
+        # so we can compute sha directly from L(1)
+        E = E.minimal_model()
+        c_infty = E.period_lattice().omega(bsd_normalise=True)
+        tamagawa_product = E.tamagawa_product()
+        sha_size_float = (Lvalue_at_1 * E.torsion_order()**2) / (c_infty * tamagawa_product)
+        sha_size = int(sha_size_float.round())
+
+    return sha_size
+
+
+
 def generate_z_scores(curve_label, max_d=None, restricted_ds=None, debug=True):
     """
     Generate z-scores for quadratic twists of the given curve.
@@ -164,26 +199,16 @@ def generate_z_scores(curve_label, max_d=None, restricted_ds=None, debug=True):
         try:
             E_d = E.quadratic_twist(d)
             if debug:
-                print(f"    Computing SHA for d={d}...", end=" ", flush=True)
+                print(f"    Computing SHA for d={d}...", flush=True)
 
-            # Set 10-second timeout for SHA computation
-            signal.signal(signal.SIGALRM, _sha_timeout_handler)
-            signal.alarm(10)
-            try:
-                sha_an_float = float(E_d.sha().an_numerical(prec=20, proof=False))
-            finally:
-                signal.alarm(0)  # Cancel the alarm
+            sha_int = sha_an(E_d, 1)
 
-            if debug:
-                print(f"= {sha_an_float}")
-
-            sha_int = int(round(sha_an_float))
             if sha_int < 1:
                 continue
             count_sha_ok += 1
 
             # Store the SHA value for persistence
-            sha_dict[d] = sha_an_float
+            sha_dict[d] = sha_int
 
             val = np.log(sha_int / np.sqrt(abs(d)))
             log_log_d = np.log(np.log(abs(d)))
@@ -282,7 +307,7 @@ def load_and_compute_z_scores(data_file_path, max_d=None):
     count_filtered = 0
     count_loglog = 0
 
-    for d_str, sha_an_float in sha_data.items():
+    for d_str, sha_int in sha_data.items():
         d = int(d_str)
 
         # Apply max_d filter if specified
@@ -290,7 +315,6 @@ def load_and_compute_z_scores(data_file_path, max_d=None):
             count_filtered += 1
             continue
 
-        sha_int = int(round(sha_an_float))
         if sha_int < 1:
             continue
 
