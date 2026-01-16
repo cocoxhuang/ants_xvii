@@ -92,12 +92,7 @@ def filter_CONDITION_p_isogeny(df: pd.DataFrame) -> pd.DataFrame:
         # CONDITION: irreducibility CONDITION at certain odd primes
         CONDITION = True
         a_3, a_5, a_7 = curve['a3'], curve['a5'], curve['a7']
-        if 2 in bad_primes:
-            non_isogeny_primes = bad_primes.copy()
-            non_isogeny_primes.remove(2)
-            non_isogeny_primes = set(non_isogeny_primes)
-        else:
-            non_isogeny_primes = set(bad_primes)
+        non_isogeny_primes = set(bad_primes) and set([3,5,7])
         non_isogeny_primes.update(ordinary_357([a_3, a_5, a_7]))
     
         E = EllipticCurve(ainvs)
