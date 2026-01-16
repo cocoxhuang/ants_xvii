@@ -6,6 +6,8 @@ Normality test and estimations for Radziwill-Soundararajan conjecture data:
 
 To run:
     python3 normal_test.py --label <CREMONA_LABEL>
+    or
+    python3 normal_test.py --data-path <PATH_TO_SHA_DATA_JSON>
 '''
 
 import json
@@ -34,6 +36,11 @@ def read_sha_data(label: str = None, data_path: str = None) -> tuple[np.ndarray,
     sha_data = data['data']
     ds = np.array(list(sha_data.keys())).astype(int)
     sha_values = np.array(list(sha_data.values()))
+
+    # filter out zero sha values as they are numerical errors
+    nonzero_indices = np.where(sha_values != 0)[0]
+    ds = ds[nonzero_indices]
+    sha_values = sha_values[nonzero_indices]
     return ds, sha_values
 
 def compute_Z_values(ds: np.ndarray, sha_values: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
