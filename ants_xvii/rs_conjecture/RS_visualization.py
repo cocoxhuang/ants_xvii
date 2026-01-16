@@ -305,6 +305,7 @@ def load_and_compute_z_scores(data_file_path, max_d=None):
 
     data = []
     count_filtered = 0
+    count_bad = 0
     count_loglog = 0
 
     for d_str, sha_int in sha_data.items():
@@ -313,6 +314,11 @@ def load_and_compute_z_scores(data_file_path, max_d=None):
         # Apply max_d filter if specified
         if max_d is not None and abs(d) > max_d:
             count_filtered += 1
+            continue
+
+        # Skip bad entries (e.g., 0.0 values from failed/incomplete computations)
+        if sha_int <= 0:
+            count_bad += 1
             continue
 
         if sha_int < 1:
@@ -329,6 +335,8 @@ def load_and_compute_z_scores(data_file_path, max_d=None):
 
     if max_d is not None:
         print(f"  Filtered out {count_filtered} entries with |d| > {max_d}")
+    if count_bad > 0:
+        print(f"  Skipped {count_bad} bad entries (sha <= 0)")
     print(f"  Generated {len(data)} z-scores (after log(log(d)) > 0 filter)")
 
     data.sort(key=lambda x: x[0])
