@@ -11,18 +11,24 @@ ants_xvii/
 │   ├── Algorithm2.py      # Compute admissible twists for identified curves
 │   ├── check_curve.py     # Verify conditions for individual curves
 │   └── output/
-│       ├── ec_labels.txt  # Output: curve labels from Algorithm 1
-│       └── res.json       # Output: admissible twists from Algorithm 2
+│       ├── ec_labels_150.txt          # Curve labels (conductor bound 150)
+│       ├── ec_labels_500k.txt         # Curve labels (conductor bound 500,000)
+│       ├── res.json                   # Admissible twists (default parameters)
+│       └── res_46a1_10000000.json     # Admissible twists for 46a1 (M ≤ 10,000,000)
 │
 └── rs_conjecture/
     ├── RS_visualization.py                # Generate RS conjecture visualizations
-    ├── RS_conjecture_visualization.ipynb  # Interactive notebook version
+    ├── normal_test.py                     # Statistical tests for normality
     └── output/
         ├── frames/                        # PNG animation frames (per-run subfolders)
         │   └── <run_id>/                  # e.g., 46a1_maxd1000_nf5_20260107_120000
         │       └── frame_*.png
+        ├── sha_data/                      # Precomputed SHA data for various curves
+        ├── SW_test/                       # Shapiro-Wilk test results and plots
+        ├── KS_dist/                       # Kolmogorov-Smirnov distance results
+        ├── Wasserstein_dist/              # Wasserstein distance results
+        ├── cdf_html/                      # CDF visualization HTML files
         ├── <run_id>.html                  # HTML animations (one per run)
-        └── convergence_*.gif              # Legacy animated GIFs
 ```
 
 ## Requirements
@@ -130,7 +136,7 @@ sage -python RS_visualization.py --data_file output/<run_id>_data.json --max_d 5
 - `--data_file`: Path to previously saved SHA data JSON file (skips computation)
 - `--pdf` / `--cdf`: Visualization mode (required, mutually exclusive)
 
-**Output:**
+<!-- **Output:**
 - PNG frames: `output/frames/<run_id>/frame_*.png`
 - HTML animation: `output/<run_id>.html`
 - Data file: `output/<run_id>_data.json` (for reuse)
@@ -144,7 +150,39 @@ Interactive Jupyter notebook version for exploratory analysis.
 ```bash
 cd ants_xvii/rs_conjecture
 sage -n jupyter RS_conjecture_visualization.ipynb
+``` -->
+
+### normal_test.py
+
+Performs statistical normality tests on the Radziwiłł-Soundararajan conjecture data to assess how well the normalized Sha values follow a standard normal distribution. Computes three key statistical measures:
+
+- **Shapiro-Wilk test**: Tests the null hypothesis that data is normally distributed. Note our data is not independent and the result should be treated merely as a reference rather than a rigorous test.
+- **Kolmogorov-Smirnov distance**: Measures the maximum distance between empirical and theoretical CDFs
+- **Wasserstein distance**: Measures the "earth mover's distance" between distributions via optimal transport
+
+The script analyzes how these statistical measures change as the discriminant bound increases, providing quantitative evidence for convergence to normality.
+
+**Usage:**
+
+```bash
+cd ants_xvii/rs_conjecture
+
+# Test using precomputed data for a specific curve (max |d| = 10000)
+python3 normal_test.py --label 46a1
+
+# Test using a custom data file
+python3 normal_test.py --data-path 46a1_maxd100000_sha_data --label 46a1
 ```
+
+**Arguments:**
+- `--label`: Cremona label for the elliptic curve (required)
+- `--data-path`: Path to a custom SHA data JSON file (optional; if not provided, uses precomputed data)
+
+**Output:**
+- Test results saved to: `output/SW_test/<label>_shapiro_wilk_<bound>.json`
+- Plots saved to: `output/SW_test/plots/`
+- Kolmogorov-Smirnov results: `output/KS_dist/`
+- Wasserstein distance results: `output/Wasserstein_dist/`
 
 ## LMFDB
 
