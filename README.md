@@ -156,9 +156,9 @@ sage -n jupyter RS_conjecture_visualization.ipynb
 
 Performs statistical normality tests on the Radziwiłł-Soundararajan conjecture data to assess how well the normalized Sha values follow a standard normal distribution. Computes three key statistical measures:
 
-- **Shapiro-Wilk test**: Tests the null hypothesis that data is normally distributed. Note our data is not independent and the result should be treated merely as a reference rather than a rigorous test.
 - **Kolmogorov-Smirnov distance**: Measures the maximum distance between empirical and theoretical CDFs
 - **Wasserstein distance**: Measures the "earth mover's distance" between distributions via optimal transport
+- **Shapiro-Wilk test**: Tests the null hypothesis that data is normally distributed. Note our data is not independent and the result should be treated merely as a reference rather than a rigorous test.
 
 The script analyzes how these statistical measures change as the discriminant bound increases, providing quantitative evidence for convergence to normality.
 
