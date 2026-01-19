@@ -47,7 +47,7 @@ from lmfdb import db
 # =============================================================================
 
 # Bound for admissible twists M
-TWIST_BOUND = 10000000
+TWIST_BOUND = 1000
 
 # LMFDB database handle
 ecq = db.ec_curvedata
