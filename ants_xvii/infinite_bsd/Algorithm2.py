@@ -11,10 +11,16 @@ Two methods are implemented based on the source paper:
 - Zha16: Zhai (2016) criteria for curves without 2-torsion
 
 Usage:
-    sage -python Algorithm2.py
+    sage -python Algorithm2.py <input_file>
 
-Output:
-    Writes admissible twists to output/res.json
+    where <input_file> is a text file containing elliptic curve labels from Algorithm 1
+    (e.g., ec_labels_150.txt).
+
+    The output will be written to output/twists_of_<input_filename>.json
+    For example:
+        sage -python Algorithm2.py output/ec_labels_150.txt
+    will produce:
+        output/twists_of_ec_labels_150.json
 
 References:
     [CLZ20] L. Cai, C. Li and S. Zhai, "On the 2-part of the Birch and
@@ -42,10 +48,6 @@ from lmfdb import db
 
 # Bound for admissible twists M
 TWIST_BOUND = 10000000
-
-# Input/Output file paths
-INPUT_LABELS_FILE = 'output/ec_labels.txt'
-OUTPUT_RESULTS_FILE = f'output/res_46a1_{TWIST_BOUND}.json'
 
 # LMFDB database handle
 ecq = db.ec_curvedata
@@ -216,11 +218,23 @@ def main():
     """
     Main entry point: read curve labels, compute admissible twists, save results.
     """
+    if len(sys.argv) != 2:
+        print("Usage: sage -python Algorithm2.py <input_file>")
+        print("Example: sage -python Algorithm2.py output/ec_labels_150.txt")
+        sys.exit(1)
+
+    input_file = sys.argv[1]
+
+    # Generate output filename from input filename
+    input_basename = os.path.basename(input_file)
+    input_name_without_ext = os.path.splitext(input_basename)[0]
+    output_file = f"output/twists_of_{input_name_without_ext}.json"
+
     print(f"Computing admissible twists up to bound B = {TWIST_BOUND}")
-    print(f"Reading labels from: {INPUT_LABELS_FILE}")
+    print(f"Reading labels from: {input_file}")
 
     # Read elliptic curve labels from Algorithm 1 output
-    with open(INPUT_LABELS_FILE, 'r') as file:
+    with open(input_file, 'r') as file:
         labels = [line.strip() for line in file.readlines()]
 
     results = {}
@@ -246,10 +260,10 @@ def main():
         print(f"  {cremona_label} ({source}): {len(twists)} admissible twists")
 
     # Save results to JSON
-    with open(OUTPUT_RESULTS_FILE, 'w') as f:
+    with open(output_file, 'w') as f:
         json.dump(results, f, indent=4)
 
-    print(f"\nResults saved to: {OUTPUT_RESULTS_FILE}")
+    print(f"\nResults saved to: {output_file}")
 
 
 if __name__ == '__main__':
