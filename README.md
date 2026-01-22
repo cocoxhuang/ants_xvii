@@ -189,6 +189,7 @@ python3 normal_test.py --data-path 46a1_maxd100000_sha_data --label 46a1
 This repository is forked from the [LMFDB (L-functions and Modular Forms Database)](https://github.com/LMFDB/lmfdb) project. The algorithms in `ants_xvii/infinite_bsd` query the LMFDB database to retrieve precomputed quantities for elliptic curves, including invariants, BSD data, and information about quadratic twists.
 
 ## References
+- **[BSTW]** A. Burungale, C. Skinner, Y. Tian, and X. Wan, "Zeta elements for elliptic curves and applications", arXiv preprint arXiv:2409.01350 (2024).
 
 - **[CLZ20]** L. Cai, C. Li, and S. Zhai, "On the 2-part of the Birch and Swinnerton-Dyer conjecture for quadratic twists of elliptic curves", J. Lond. Math. Soc. (2) 101 (2020), no. 2, 714–734.
 
